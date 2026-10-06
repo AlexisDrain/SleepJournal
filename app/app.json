@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Sleep Journal",
+    "slug": "sleep-journal",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "scheme": "sleepjournal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0e1120",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "backgroundColor": "#0e1120",
+      "name": "Sleep Journal",
+      "shortName": "Sleep Journal",
+      "description": "A private, offline sleep diary.",
+      "themeColor": "#0e1120"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "plugins": [
+      "expo-router",
+      "@react-native-community/datetimepicker",
+      "expo-notifications",
+      "expo-sqlite",
+      "expo-sharing",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "18e6c1c4-e0a6-4c4e-8b73-617352a696f1"
+      }
+    },
+    "owner": "alexisdrain",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/18e6c1c4-e0a6-4c4e-8b73-617352a696f1"
+    }
+  }
+}

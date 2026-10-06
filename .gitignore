@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+
+# Personal journal data: real sleep entries, keep them out of the repo
+*.csv
+*.xlsx
+*.db
+*.sqlite
