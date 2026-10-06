@@ -153,7 +153,7 @@ export default function JournalScreen() {
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.scroll, page(wide && !stepPhase ? WIDE_PAGE : NARROW_PAGE)]}>
-        <NightSwitcher nightOf={nightOf} onChange={browseTo} onOpenCalendar={() => setCalendarOpen(true)}
+        <NightSwitcher nightOf={nightOf} onChange={browseTo} onOpenCalendar={() => setCalendarOpen(true)} arrows={!stepPhase}
           onToday={onStartNight || nightOf === due.nightOf ? null : () => void retarget()} />
         <SaveLine status={autosave.status} dirty={draft.dirty} error={autosave.error} onRetry={flush} />
         {error ? (

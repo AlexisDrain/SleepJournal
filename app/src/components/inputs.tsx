@@ -11,11 +11,13 @@ import { Chip, Input, Muted, styles } from './ui';
  * "‹  Friday night → Saturday  ›". Arrows step a night at a time, tapping the date opens the
  * calendar, and "Today" (shown when you're looking at another night) jumps back to what's due now.
  */
-export function NightSwitcher({ nightOf, onChange, onOpenCalendar, onToday }: {
+export function NightSwitcher({ nightOf, onChange, onOpenCalendar, onToday, arrows = true }: {
   nightOf: string;
   onChange: (n: string) => void;
   onOpenCalendar: () => void;
   onToday: (() => void) | null;
+  /** The ‹ › previous/next night arrows. Off while questions are asked one at a time, where they read as Back/Next. */
+  arrows?: boolean;
 }) {
   const arrow = (days: number, glyph: string, label: string) => (
     <Pressable onPress={() => onChange(addDays(nightOf, days))} hitSlop={12} style={{ padding: space.sm }} accessibilityLabel={label}>
@@ -24,13 +26,13 @@ export function NightSwitcher({ nightOf, onChange, onOpenCalendar, onToday }: {
   );
   return (
     <View style={{ marginBottom: space.lg, gap: space.sm }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        {arrow(-1, '‹', 'Previous night')}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: arrows ? 'space-between' : 'center' }}>
+        {arrows && arrow(-1, '‹', 'Previous night')}
         <Pressable onPress={onOpenCalendar} style={{ alignItems: 'center' }} accessibilityRole="button" accessibilityLabel="Choose a night from the calendar">
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>{nightLabel(nightOf)}</Text>
           <Muted>{shortDate(nightOf)}  ▾</Muted>
         </Pressable>
-        {arrow(1, '›', 'Next night')}
+        {arrows && arrow(1, '›', 'Next night')}
       </View>
       {onToday && (
         <View style={{ alignItems: 'center' }}>
