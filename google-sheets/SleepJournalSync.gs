@@ -22,16 +22,24 @@
  *   - when you edit a cell by hand, stamps that row's "Updated" so the app picks up your edit
  *   - hides the columns you switched off in the app (they still sync; unhide them any time) and
  *     keeps the computed columns (day, hours asleep, the "●●○● 3/4" routine summaries) up to date
+ *   - keeps your routine checklist (names, order, hidden items) in a "Routine items" tab, so every
+ *     device shows the same list; when an item is renamed, its column in the year tabs is renamed too
  */
 
 /**
  * Bump this whenever the script changes in a way the app should know about. The app compares it
  * with the version it was built for and tells the user when their sheet's script is out of date.
  */
-const SCRIPT_VERSION = 2;
+const SCRIPT_VERSION = 3;
 
 const NIGHT = 'Night of';
 const UPDATED = 'Updated';
+// The routine checklist, one row per item. The app owns it; hand edits here are picked up too.
+const ROUTINE_TAB = 'Routine items';
+const ROUTINE_COLS = ['Id', 'Check-in', 'Item', 'Records', 'Order', 'Hidden', UPDATED];
+const ROUTINE_KINDS = ['check', 'time', 'number', 'text'];
+// An item's column in the year tabs is this + its name, e.g. "Bedtime: Brush teeth" (same as the app).
+const ROUTINE_PREFIX = { bedtime: 'Bedtime: ', morning: 'Morning: ' };
 // [header color, cell tint] per column group, same as the app's .xlsx export
 const COLORS = {
   other: ['#b7e4c7', '#eaf7ef'],
@@ -98,6 +106,8 @@ function doPost(e) {
     if (req.action === 'ping') return json_({ ok: true, sheet: ss.getName(), version: SCRIPT_VERSION });
     if (req.action === 'push') return json_(withVersion_(push_(ss, req.columns, req.rows)));
     if (req.action === 'pull') return json_(withVersion_(pull_(ss, req.since || '')));
+    if (req.action === 'routine-get') return json_(withVersion_({ ok: true, items: routineGet_(ss) }));
+    if (req.action === 'routine-set') return json_(withVersion_({ ok: true, items: routineSet_(ss, req.items || []) }));
     return json_({ ok: false, error: 'Unknown action' });
   } catch (err) {
     return json_({ ok: false, error: String((err && err.message) || err) });
@@ -216,12 +226,162 @@ function pull_(ss, since) {
   return { ok: true, tabs: tabs };
 }
 
+// ---------- the routine list ----------
+
+/**
+ * items: [{ id, phase: 'bedtime' | 'morning', label, kind, order, hidden, updated }]
+ *   id:      made by the app; it stays the same when the item is renamed, which is how a rename is
+ *            told apart from "one item removed, another added"
+ *   updated: when the item last changed; the newest version of an item wins
+ */
+function routineGet_(ss) {
+  const items = readRoutine_(ss);
+  renameRoutineColumns_(ss, items);
+  return items;
+}
+
+/** The app's list → the tab. Items the app didn't send are kept; a newer version here is kept too. */
+function routineSet_(ss, incoming) {
+  const items = readRoutine_(ss);
+  const at = {};
+  items.forEach(function (it, i) { at[it.id] = i; });
+  incoming.forEach(function (raw) {
+    const it = routineItem_(raw.id, raw.phase, raw.label, raw.kind, raw.order, raw.hidden, raw.updated);
+    if (!it || !it.id) return;
+    if (at[it.id] === undefined) {
+      at[it.id] = items.length;
+      items.push(it);
+    } else if (it.updated >= items[at[it.id]].updated) {
+      items[at[it.id]] = it;
+    }
+  });
+  writeRoutine_(ss, items);
+  renameRoutineColumns_(ss, items);
+  return items;
+}
+
+/** One cleaned-up item, or null if it has no name or check-in. */
+function routineItem_(id, phase, label, kind, order, hidden, updated) {
+  phase = String(phase || '').trim().toLowerCase();
+  label = String(label || '').trim();
+  kind = String(kind || '').trim().toLowerCase();
+  if (!label || !ROUTINE_PREFIX[phase]) return null;
+  return {
+    id: String(id || '').trim(),
+    phase: phase,
+    label: label,
+    kind: ROUTINE_KINDS.indexOf(kind) >= 0 ? kind : 'check',
+    order: Number(order) || 0,
+    hidden: hidden === true || /^(yes|true)$/i.test(String(hidden || '').trim()),
+    updated: toIsoTime_(updated),
+  };
+}
+
+function readRoutine_(ss) {
+  const sh = ss.getSheetByName(ROUTINE_TAB);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const items = [];
+  let fixed = false;
+  sh.getRange(2, 1, sh.getLastRow() - 1, ROUTINE_COLS.length).getValues().forEach(function (r) {
+    const it = routineItem_(r[0], r[1], r[2], r[3], r[4], r[5], r[6]);
+    if (!it) return;
+    if (!it.id) { // a row typed in by hand: give it an id so it can sync
+      it.id = Utilities.getUuid().replace(/-/g, '').slice(0, 16);
+      it.updated = nowIso_();
+      fixed = true;
+    }
+    items.push(it);
+  });
+  if (fixed) writeRoutine_(ss, items);
+  return items;
+}
+
+function writeRoutine_(ss, items) {
+  let sh = ss.getSheetByName(ROUTINE_TAB);
+  const n = ROUTINE_COLS.length;
+  if (!sh) {
+    sh = ss.insertSheet(ROUTINE_TAB, ss.getSheets().length);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, n).setValues([ROUTINE_COLS]).setFontWeight('bold').setBackground(COLORS.other[0]);
+    sh.getRange(1, 1).setNote(
+      'Your routine checklist, kept in step with the Sleep Journal app on every device. ' +
+      'It is easiest to change items in the app (Routines → Edit). Do not change the Id column.'
+    );
+    sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, 1), n).setNumberFormat('@'); // plain text
+    sh.getRange(2, 5, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat('0'); // Order
+  }
+  const sorted = items.slice().sort(function (a, b) {
+    return a.phase === b.phase ? a.order - b.order : a.phase === 'bedtime' ? -1 : 1;
+  });
+  const old = sh.getLastRow() - 1;
+  if (old > 0) sh.getRange(2, 1, old, n).clearContent();
+  if (!sorted.length) return;
+  ensureRows_(sh, sorted.length + 1);
+  sh.getRange(2, 1, sorted.length, n).setValues(sorted.map(function (it) {
+    return [it.id, it.phase, it.label, it.kind, it.order, it.hidden ? 'yes' : '', it.updated];
+  }));
+}
+
+/**
+ * When an item's name (or check-in) changed since last time, renames its column in every year tab,
+ * so the nights already recorded stay in one column instead of splitting into an old and a new one.
+ */
+function renameRoutineColumns_(ss, items) {
+  const props = PropertiesService.getScriptProperties();
+  const before = JSON.parse(props.getProperty('ROUTINE_HEADERS') || '{}');
+  const now = {};
+  const inUse = {};
+  items.forEach(function (it) {
+    now[it.id] = ROUTINE_PREFIX[it.phase] + it.label;
+    inUse[now[it.id]] = true;
+  });
+  items.forEach(function (it) {
+    const from = before[it.id];
+    const to = now[it.id];
+    if (!from || from === to || inUse[from]) return; // another item still uses the old name: leave its column be
+    ss.getSheets().forEach(function (sh) {
+      if (/^\d{4}$/.test(sh.getName())) renameColumn_(sh, from, to, it.phase);
+    });
+  });
+  const wanted = JSON.stringify(now);
+  if (wanted !== JSON.stringify(before)) props.setProperty('ROUTINE_HEADERS', wanted);
+}
+
+function renameColumn_(sh, from, to, group) {
+  const lastCol = sh.getLastColumn();
+  if (!lastCol) return;
+  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+  const a = headers.indexOf(from);
+  if (a < 0) return;
+  const b = headers.indexOf(to);
+  const rows = sh.getLastRow() - 1;
+  if (b < 0) {
+    const colors = COLORS[group] || COLORS.other;
+    sh.getRange(1, a + 1).setValue(to).setBackground(colors[0]);
+    sh.getRange(2, a + 1, Math.max(sh.getMaxRows() - 1, 1), 1).setBackground(colors[1]);
+  } else {
+    // Both columns exist (the item was split by an earlier rename): fold the old one into the new one.
+    if (rows > 0) {
+      const oldValues = sh.getRange(2, a + 1, rows, 1).getValues();
+      const target = sh.getRange(2, b + 1, rows, 1);
+      const values = target.getValues();
+      values.forEach(function (v, i) {
+        if (v[0] === '' && oldValues[i][0] !== '') v[0] = oldValues[i][0];
+      });
+      target.setValues(values);
+    }
+    sh.deleteColumn(a + 1);
+  }
+  PropertiesService.getScriptProperties().deleteProperty('LAYOUT_' + sh.getName()); // re-apply hidden columns and notes
+}
+
 // ---------- hand edits ----------
 
 /** Runs when you edit the sheet by hand: marks the edited rows as changed so the app pulls them. */
 function onEdit(e) {
   const sh = e.range.getSheet();
-  if (!/^\d{4}$/.test(sh.getName()) || e.range.getRow() < 2) return;
+  const name = sh.getName();
+  if ((!/^\d{4}$/.test(name) && name !== ROUTINE_TAB) || e.range.getRow() < 2) return;
   const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const u = headers.indexOf(UPDATED);
   if (u < 0) return;

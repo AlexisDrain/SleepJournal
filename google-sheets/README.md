@@ -124,13 +124,19 @@ enter the same two things there.
   to see which dot is which). The per-item columns, and any field you switch off in the app's
   Export panel, are hidden rather than removed: right-click the column letters → *Unhide* to see them.
   Hand-edit the per-item columns, not the summary: the summary is recalculated by the app.
-- **Renaming a routine item** starts a new column (the old one keeps its history).
+- **Your routine list syncs too.** The script keeps it in a **Routine items** tab (name, check-in,
+  order, hidden), so the phone and the web app show the same checklist in the same order. Change
+  items in the app (**Routines → Edit**); leave the *Id* column alone.
+- **Renaming a routine item** renames its column in the year tabs, so its history stays in one
+  column. (If an older version already split an item into two columns, the next rename folds the
+  old column into the new one and removes the old one.)
 
 ## Updating the script
 
 A sheet's script doesn't update by itself, whether you copied the template or pasted the code.
 When the script changes, the app shows a note in **Settings → Google Sheet** saying your sheet's
-script is an older version. Syncing keeps working; to update:
+script is an older version. Your nights keep syncing (newer features, like the shared routine
+list in version 3, wait until you update); to update:
 
 1. In the script editor, replace all the code with the current
    [`SleepJournalSync.gs`](SleepJournalSync.gs) and click **Save**.

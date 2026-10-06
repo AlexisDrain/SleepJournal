@@ -94,6 +94,20 @@ const MIGRATIONS: string[] = [
     ('Drink water',                      'morning', 'check', 3),
     ('Get some sunlight',                'morning', 'check', 4);
   `,
+
+  // 2 — routine items can sync between devices, and have a real order
+  `
+  -- uid: the item's identity across devices (ids differ per device). updated_at: newest edit wins.
+  ALTER TABLE routine_items ADD COLUMN uid TEXT;
+  ALTER TABLE routine_items ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+  UPDATE routine_items SET uid = lower(hex(randomblob(8)));
+  CREATE UNIQUE INDEX routine_items_uid_idx ON routine_items (uid);
+
+  -- Items added in the app all had position 0. Number each check-in's list 1, 2, 3… as it shows now.
+  UPDATE routine_items SET sort_order = r.n
+  FROM (SELECT id, row_number() OVER (PARTITION BY phase ORDER BY sort_order, id) AS n FROM routine_items) AS r
+  WHERE r.id = routine_items.id;
+  `,
 ];
 
 export async function migrate(db: SQLiteDatabase) {

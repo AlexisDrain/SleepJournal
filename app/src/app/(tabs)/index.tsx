@@ -37,6 +37,9 @@ export default function JournalScreen() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [mode, setMode] = useState<JournalMode>('all');
   const [stepsDone, setStepsDone] = useState(false); // finished the questions for the check-in on screen
+  // Set by tapping "Ask me one question at a time": walk through this check-in now, even on a
+  // night that was browsed to or a check-in that is already filled in.
+  const [stepsAsked, setStepsAsked] = useState<Phase | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const wide = useWide();
 
@@ -46,9 +49,10 @@ export default function JournalScreen() {
   useEffect(() => {
     loadJournalMode().then(setMode, () => {});
   }, []);
-  const chooseMode = (m: JournalMode) => {
+  const chooseMode = (m: JournalMode, ask: Phase | null = null) => {
     setMode(m);
     setStepsDone(false);
+    setStepsAsked(ask);
     saveJournalMode(m).catch(() => {});
   };
 
@@ -75,6 +79,7 @@ export default function JournalScreen() {
     await flush();
     setNightOf(target.nightOf);
     setStepsDone(false);
+    setStepsAsked(null);
     setExpanded(
       target.both || !target.open
         ? { bedtime: true, morning: true }
@@ -137,7 +142,7 @@ export default function JournalScreen() {
   const onStartNight = start !== null && start.nightOf === nightOf;
   const missedBanner = onStartNight && start.missed && !isFilled(entry, start.open);
   // One question at a time only for the check-in the app opened on; browsing other nights shows everything.
-  const stepPhase: Phase | null = mode === 'steps' && onStartNight && !stepsDone ? start.open : null;
+  const stepPhase: Phase | null = mode !== 'steps' ? null : stepsAsked ?? (onStartNight && !stepsDone ? start.open : null);
 
   const rested = draft.get('rested') ?? DEFAULT_RESTED;
   const fields: FieldProps = { nightOf, draft, tags, rested, usual };
@@ -169,6 +174,7 @@ export default function JournalScreen() {
                 onDone={async () => {
                   await flush();
                   setStepsDone(true);
+                  setStepsAsked(null);
                 }} />
             ) : (
               <>
@@ -195,10 +201,18 @@ export default function JournalScreen() {
               </>
             )}
 
-            <Pressable onPress={() => chooseMode(mode === 'steps' ? 'all' : 'steps')} hitSlop={8}
+            <Pressable hitSlop={8}
+              onPress={() => {
+                if (stepPhase) return chooseMode('all');
+                // Which check-in to ask about: the one the app opened on, else the one due now,
+                // else the first one of this night that isn't filled in.
+                chooseMode('steps', onStartNight ? start.open
+                  : nightOf === due.nightOf ? due.phase
+                  : filledNow('bedtime') && !filledNow('morning') ? 'morning' : 'bedtime');
+              }}
               style={{ alignSelf: 'center', marginTop: space.lg }}>
               <Text style={{ color: colors.muted, textDecorationLine: 'underline' }}>
-                {mode === 'steps' ? 'Show everything on one page' : 'Ask me one question at a time'}
+                {stepPhase ? 'Show everything on one page' : 'Ask me one question at a time'}
               </Text>
             </Pressable>
             {actionError && <ErrorBox message={actionError} />}

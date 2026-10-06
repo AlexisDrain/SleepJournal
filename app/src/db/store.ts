@@ -1,7 +1,7 @@
 // All reads and writes go through here: plain SQL against the SQLite file on the phone.
 import * as SQLite from 'expo-sqlite';
 import { addDays, currentNight, weekdayOf } from '@/lib/time';
-import type { Entry, EntryPatch, Nap, RoutineItem, Stats, Tag } from '@/lib/types';
+import type { Entry, EntryPatch, Nap, Phase, RoutineItem, Stats, Tag } from '@/lib/types';
 import { migrate } from './migrations';
 import { transaction } from './transaction';
 import { claimWebDatabase, explainStorageError } from './webStorage';
@@ -200,6 +200,68 @@ function table<T extends { id: number }>(name: string, orderBy: string, columns:
   };
 }
 
+// ---------- routine items ----------
+
+const routineTable = table<RoutineItem>(
+  'routine_items',
+  'phase, sort_order, id',
+  { label: 'label', phase: 'phase', kind: 'kind', sortOrder: 'sort_order', archived: 'archived', uid: 'uid', updatedAt: 'updated_at' },
+  ['archived'],
+);
+
+const stamp = () => new Date().toISOString().slice(0, 19) + 'Z';
+const newUid = () => Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+const endOf = async (phase: Phase) =>
+  (await (await getDb()).getFirstAsync<{ n: number }>(
+    `SELECT coalesce(max(sort_order), 0) + 1 AS n FROM routine_items WHERE phase = ?`, phase))!.n;
+
+type RoutineEdit = Partial<Pick<RoutineItem, 'label' | 'phase' | 'kind' | 'archived'>>;
+
+/** Every change stamps the item, so the newest edit wins when devices sync through the sheet. */
+const routine = {
+  list: routineTable.list,
+  remove: routineTable.remove,
+
+  /** A new item goes to the end of its check-in's list. */
+  create: async (body: Pick<RoutineItem, 'label' | 'phase' | 'kind'>) =>
+    routineTable.create({ label: body.label, phase: body.phase, kind: body.kind, sortOrder: await endOf(body.phase), uid: newUid(), updatedAt: stamp() }),
+
+  update: async (id: number, body: RoutineEdit) => {
+    const db = await getDb();
+    const now = await db.getFirstAsync<{ phase: Phase }>(`SELECT phase FROM routine_items WHERE id = ?`, id);
+    // Moved to the other check-in: it joins the end of that list.
+    const moved = body.phase !== undefined && now !== null && body.phase !== now.phase;
+    await routineTable.update(id, {
+      label: body.label, phase: body.phase, kind: body.kind, archived: body.archived,
+      ...(moved ? { sortOrder: await endOf(body.phase!) } : {}),
+      updatedAt: stamp(),
+    });
+  },
+
+  /** Move an item one place up (-1) or down (1) among the items that are showing. */
+  move: async (id: number, direction: -1 | 1) => {
+    const db = await getDb();
+    const all = await routineTable.list();
+    const me = all.find((i) => i.id === id);
+    if (!me) return;
+    const list = all.filter((i) => i.phase === me.phase);
+    const from = list.indexOf(me);
+    let to = from + direction;
+    while (list[to]?.archived) to += direction; // hidden items don't count as a step
+    if (!list[to]) return;
+    list.splice(from, 1);
+    list.splice(to, 0, me);
+    const now = stamp();
+    await transaction(db, async (tx) => {
+      for (const [i, item] of list.entries()) {
+        if (item.sortOrder !== i + 1) {
+          await tx.runAsync(`UPDATE routine_items SET sort_order = ?, updated_at = ? WHERE id = ?`, i + 1, now, item.id);
+        }
+      }
+    });
+  },
+};
+
 // ---------- stats ----------
 
 /** Averages over the last N nights. Clock times are averaged as "minutes after noon" (bedtime)
@@ -247,12 +309,7 @@ export const store = {
   saveEntry,
   deleteEntry,
   tags: table<Tag>('tags', 'name', { name: 'name' }),
-  routine: table<RoutineItem>(
-    'routine_items',
-    'phase, sort_order, id',
-    { label: 'label', phase: 'phase', kind: 'kind', sortOrder: 'sort_order', archived: 'archived' },
-    ['archived'],
-  ),
+  routine,
   naps: table<Nap>('naps', 'start_at DESC', { startAt: 'start_at', endAt: 'end_at', note: 'note' }),
   stats,
 };

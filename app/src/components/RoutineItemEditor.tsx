@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { store } from '@/db/store';
+import { requestSync } from '@/db/sync';
 import type { Phase, RoutineItem } from '@/lib/types';
 import { colors, space } from '@/lib/theme';
 import { Panel } from './Panel';
@@ -34,11 +35,12 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
     setError(null);
   }, [item]);
 
-  const run = (patch: Partial<RoutineItem>) => async () => {
+  const run = (patch: Partial<Pick<RoutineItem, 'label' | 'phase' | 'kind' | 'archived'>>) => async () => {
     if (!item) return;
     setBusy(true);
     try {
       await store.routine.update(item.id, patch);
+      requestSync(); // the routine list syncs through the Google Sheet, if connected
       onSaved();
       onClose();
     } catch (e) {

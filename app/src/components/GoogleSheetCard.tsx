@@ -80,7 +80,8 @@ export function GoogleSheetCard() {
           </Muted>
           {state && state.scriptVersion < LATEST_SCRIPT_VERSION && (
             <Text style={{ color: colors.morning }}>
-              Your sheet's script is an older version. Syncing still works, but it's missing newer fixes.
+              Your sheet's script is an older version. Your nights still sync, but changes to your routine
+              list (new, renamed or reordered items) won't reach your other devices until it's updated.
               To update it, paste the current script into the sheet and deploy a new version (see "Updating
               the script" in the setup guide).
             </Text>

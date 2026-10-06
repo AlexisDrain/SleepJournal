@@ -5,10 +5,14 @@
 // Each side keeps an "updated" time per night and the newest version wins, so edits made in the
 // sheet by hand (or from the web app) come back here. Deleting a night doesn't sync.
 //
+// The routine list (item names, order, hidden) syncs too, through the sheet's "Routine items" tab,
+// so every device shows the same checklist and a rename stays one item.
+//
 // The connection code (script URL + secret key) is kept in the phone's secure storage.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadExcluded, loadRoutineDetail } from '@/lib/exportPrefs';
 import { secureStorage } from '@/lib/secureStorage';
+import type { Phase, RoutineItem } from '@/lib/types';
 import { isEmptyRow, routineColumnsFor, rowToPatch, sheetPayload } from './csv';
 import { getDb, store, writeEntry } from './store';
 import { transaction } from './transaction';
@@ -17,7 +21,7 @@ const CONNECTION_KEY = 'sleepjournal.sheetConnection';
 const STATE_KEY = 'sleepjournal.sheetSync.v1';
 const PUSH_BATCH = 200;
 /** The version of google-sheets/SleepJournalSync.gs this app was built for (its SCRIPT_VERSION). */
-export const LATEST_SCRIPT_VERSION = 2;
+export const LATEST_SCRIPT_VERSION = 3;
 
 export interface Connection { url: string; secret: string }
 
@@ -129,6 +133,75 @@ export async function disconnect() {
   await AsyncStorage.removeItem(STATE_KEY);
 }
 
+// ---------- the routine list ----------
+
+/** A routine item as the sheet's "Routine items" tab keeps it. */
+interface SheetRoutineItem {
+  id: string; // RoutineItem.uid
+  phase: Phase;
+  label: string;
+  kind: RoutineItem['kind'];
+  order: number;
+  hidden: boolean;
+  updated: string;
+}
+
+const toSheetItem = (i: RoutineItem): SheetRoutineItem =>
+  ({ id: i.uid, phase: i.phase, label: i.label, kind: i.kind, order: i.sortOrder, hidden: i.archived, updated: i.updatedAt });
+const listKey = (items: SheetRoutineItem[]) =>
+  JSON.stringify(items.map((i) => [i.id, i.phase, i.label, i.kind, i.order, i.hidden, i.updated]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+
+/**
+ * Brings this device's routine list and the sheet's into line; per item, the newest edit wins.
+ * It runs before the nights are exchanged, because nights name routine items by their label.
+ *
+ * The first time, the two sides don't know each other's ids, so items are paired up by name and
+ * this device takes over the sheet's version of them (whichever device synced first set it).
+ * Returns whether anything changed on this device.
+ */
+async function syncRoutine(conn: Connection): Promise<boolean> {
+  let remote: SheetRoutineItem[];
+  try {
+    remote = (await call<{ items: SheetRoutineItem[] }>(conn, 'routine-get')).items;
+  } catch (e) {
+    if ((e as Error).message === 'Unknown action') return false; // the sheet's script is older than version 3
+    throw e;
+  }
+  const local = await store.routine.list();
+  const remoteIds = new Set(remote.map((r) => r.id));
+  const paired = new Set<number>();
+  let changed = false;
+  const db = await getDb();
+  await transaction(db, async (tx) => {
+    for (const r of remote) {
+      let mine = local.find((l) => l.uid === r.id);
+      const known = !!mine;
+      mine ??= local.find((l) => !paired.has(l.id) && !remoteIds.has(l.uid) && l.phase === r.phase && l.label === r.label);
+      if (!mine) {
+        await tx.runAsync(
+          `INSERT INTO routine_items (uid, label, phase, kind, sort_order, archived, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          r.id, r.label, r.phase, r.kind, r.order, Number(r.hidden), r.updated,
+        );
+        changed = true;
+        continue;
+      }
+      paired.add(mine.id);
+      if (listKey([toSheetItem(mine)]) === listKey([r])) continue;
+      if (known && r.updated < mine.updatedAt) continue; // this device's edit is newer: it is sent below
+      await tx.runAsync(
+        `UPDATE routine_items SET uid = ?, label = ?, phase = ?, kind = ?, sort_order = ?, archived = ?, updated_at = ? WHERE id = ?`,
+        r.id, r.label, r.phase, r.kind, r.order, Number(r.hidden), r.updated, mine.id,
+      );
+      changed = true;
+    }
+  });
+  const mineNow = (await store.routine.list()).map(toSheetItem);
+  if (listKey(mineNow) !== listKey(remote)) await call(conn, 'routine-set', { items: mineNow });
+  return changed;
+}
+
+// ---------- nights ----------
+
 interface PullTab { header: string[]; rows: { nightOf: string; updated: string; cells: string[] }[] }
 
 const pulledListeners = new Set<() => void>();
@@ -153,6 +226,7 @@ async function runSync() {
   if (!conn) throw new Error('Not connected to a Google Sheet.');
   const state = await getSyncState();
   try {
+    const routineChanged = await syncRoutine(conn);
     const entries = await store.listEntries({ limit: 100_000 });
     // The sheet shows the same fields you chose for exports; the rest are hidden there, not dropped.
     const options = { exclude: await loadExcluded(), routineDetail: await loadRoutineDetail() };
@@ -205,7 +279,7 @@ async function runSync() {
     }
 
     await saveState({ ...state, lastSyncAt: new Date().toISOString(), lastError: null });
-    if (pulled) pulledListeners.forEach((fn) => fn());
+    if (pulled || routineChanged) pulledListeners.forEach((fn) => fn());
     return { pushed, pulled };
   } catch (e) {
     await saveState({ ...state, lastError: (e as Error).message });

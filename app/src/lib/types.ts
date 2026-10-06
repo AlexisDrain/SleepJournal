@@ -35,6 +35,10 @@ export interface RoutineItem {
   kind: 'check' | 'time' | 'number' | 'text';
   sortOrder: number;
   archived: boolean;
+  /** The same on every device that syncs with the same sheet (`id` is only this device's). */
+  uid: string;
+  /** When the item itself (name, order, hidden…) last changed: "2026-10-06T18:30:00Z", '' = never. */
+  updatedAt: string;
 }
 
 export interface Nap { id: number; startAt: string; endAt: string | null; note: string | null }

@@ -2,7 +2,7 @@
 // to change the items themselves (rename, add, hide) and manage tags. It opens on the current
 // night; the arrows and the calendar reach earlier nights.
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { CalendarSheet } from '@/components/CalendarSheet';
 import { NightSwitcher, Routine } from '@/components/inputs';
@@ -10,7 +10,7 @@ import { KIND_LABEL, RoutineItemEditor } from '@/components/RoutineItemEditor';
 import { SwipeRow } from '@/components/SwipeRow';
 import { Button, Card, Chip, ErrorBox, Input, Muted, Row, styles } from '@/components/ui';
 import { store } from '@/db/store';
-import { requestSync } from '@/db/sync';
+import { onPulled, requestSync } from '@/db/sync';
 import { confirmAction } from '@/lib/confirm';
 import { dueSlot } from '@/lib/journal';
 import { colors, space } from '@/lib/theme';
@@ -86,9 +86,15 @@ export default function RoutinesScreen() {
     await load(night);
   };
 
+  // A sync brought a changed list (edited on another device) or ticks: show them.
+  useEffect(() => onPulled(() => {
+    if (!pending.current) void load();
+  }), [load]);
+
   const act = (fn: () => Promise<unknown>) => async () => {
     try {
       await fn();
+      requestSync(); // the routine list syncs through the Google Sheet, if connected
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -116,7 +122,7 @@ export default function RoutinesScreen() {
             {editMode && <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>Edit routines</Text>}
             <Muted>
               {editMode
-                ? 'Tap an item to rename it, change what it records, or hide it.'
+                ? 'Tap an item to rename it, change what it records, or hide it. ▲ ▼ change the order.'
                 : 'Tick things off as you do them. They save to this night in your Journal.'}
             </Muted>
           </View>
@@ -132,11 +138,17 @@ export default function RoutinesScreen() {
                   {editMode ? (
                     <>
                       <View>
-                        {items.map((r) => (
+                        {items.map((r, i) => (
                           <SwipeRow key={r.id} onEdit={() => setEditing(r)} onHide={hide(r)}>
-                            <Pressable onPress={() => setEditing(r)}>
-                              <Row label={r.label}>{r.kind !== 'check' ? <Muted>+ {KIND_LABEL[r.kind]}</Muted> : null}</Row>
-                            </Pressable>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                              <Pressable onPress={() => setEditing(r)} style={{ flex: 1 }}>
+                                <Row label={r.label}>{r.kind !== 'check' ? <Muted>+ {KIND_LABEL[r.kind]}</Muted> : null}</Row>
+                              </Pressable>
+                              <MoveButton glyph="▲" label={`Move ${r.label} up`} disabled={i === 0}
+                                onPress={act(() => store.routine.move(r.id, -1))} />
+                              <MoveButton glyph="▼" label={`Move ${r.label} down`} disabled={i === items.length - 1}
+                                onPress={act(() => store.routine.move(r.id, 1))} />
+                            </View>
                           </SwipeRow>
                         ))}
                       </View>
@@ -205,6 +217,19 @@ function NewRoutineItem({ phase, onCreate }: { phase: Phase; onCreate: (i: Pick<
         </>
       )}
     </View>
+  );
+}
+
+/** ▲ / ▼ beside an item in Edit mode. */
+function MoveButton({ glyph, label, disabled, onPress }: { glyph: string; label: string; disabled: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} disabled={disabled} hitSlop={6} accessibilityRole="button" accessibilityLabel={label}
+      style={{
+        width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: colors.chip, opacity: disabled ? 0.3 : 1,
+      }}>
+      <Text style={{ color: colors.text, fontSize: 13 }}>{glyph}</Text>
+    </Pressable>
   );
 }
 

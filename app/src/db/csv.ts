@@ -294,7 +294,7 @@ export async function routineColumnsFor(header: string[], body: string[][]): Pro
     const existing = items.find((i) => i.phase === phase && i.label === label);
     if (existing) cols.push({ index, item: existing });
     else if (values.some((v) => v.trim() !== '')) {
-      cols.push({ index, item: await store.routine.create({ label, phase, kind: guessKind(values), sortOrder: 99 }) });
+      cols.push({ index, item: await store.routine.create({ label, phase, kind: guessKind(values) }) });
     }
   }
   return cols;
