@@ -6,9 +6,8 @@ import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { CalendarSheet } from '@/components/CalendarSheet';
-import { LatencyPicker, NightSwitcher, RESTED_LABELS, RestedScale, Routine, TagPicker } from '@/components/inputs';
+import { LatencyPicker, NightSwitcher, RESTED_LABELS, RestedScale, TagPicker } from '@/components/inputs';
 import { NapsCard } from '@/components/NapsCard';
-import { RoutineItemEditor } from '@/components/RoutineItemEditor';
 import { TimeField } from '@/components/TimeField';
 import { Button, Chip, ErrorBox, Input, Muted, styles } from '@/components/ui';
 import { store } from '@/db/store';
@@ -18,7 +17,7 @@ import { loadJournalMode, saveJournalMode, type JournalMode } from '@/lib/journa
 import { syncReminders } from '@/lib/notifications';
 import { colors, radius, space } from '@/lib/theme';
 import { clockOf, currentNight, formatClock, formatDuration } from '@/lib/time';
-import type { Entry, EntryPatch, Phase, RoutineItem, RoutineValue, Tag } from '@/lib/types';
+import type { Entry, EntryPatch, Phase, Tag } from '@/lib/types';
 import { useAutosave, type SaveStatus } from '@/lib/useAutosave';
 import { useDraft } from '@/lib/useDraft';
 import { useEntry } from '@/lib/useEntry';
@@ -35,14 +34,13 @@ export default function JournalScreen() {
   const [nightOf, setNightOf] = useState(night ?? currentNight());
   const [start, setStart] = useState<Start | null>(null);
   const [expanded, setExpanded] = useState<Record<Phase, boolean>>({ bedtime: true, morning: true });
-  const [editing, setEditing] = useState<RoutineItem | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [mode, setMode] = useState<JournalMode>('all');
   const [stepsDone, setStepsDone] = useState(false); // finished the questions for the check-in on screen
   const [actionError, setActionError] = useState<string | null>(null);
   const wide = useWide();
 
-  const { entry, setEntry, routine, tags, loading, error, reload, refresh, reloadLists } = useEntry(nightOf);
+  const { entry, setEntry, tags, loading, error, reload, refresh } = useEntry(nightOf);
   const draft = useDraft(entry, nightOf);
 
   useEffect(() => {
@@ -55,11 +53,10 @@ export default function JournalScreen() {
   };
 
   // ---------- autosave ----------
-  const morningIds = routine.filter((r) => r.phase === 'morning').map((r) => String(r.id));
   const autosave = useAutosave(nightOf, draft.patch, {
     prepare: (p) => {
       // "Rested" shows 3 until changed; write that default once the morning has been started.
-      const morningTouched = MORNING_KEYS.some((k) => k in p) || Object.keys(p.routine ?? {}).some((id) => morningIds.includes(id));
+      const morningTouched = MORNING_KEYS.some((k) => k in p);
       return morningTouched && entry?.rested == null && !('rested' in p) ? { rested: DEFAULT_RESTED, ...p } : p;
     },
     onSaved: (saved, sent) => {
@@ -127,8 +124,8 @@ export default function JournalScreen() {
   // Show changes that just arrived from the Google Sheet.
   useEffect(() => onPulled(() => void refresh()), [refresh]);
 
-  // Switching back to this tab: pick up routine ticks and edits made in the Routines tab,
-  // and refresh "your usual times" (the defaults offered when "now" doesn't fit).
+  // Switching back to this tab: pick up changes made in other tabs, and refresh "your usual
+  // times" (the defaults offered when "now" doesn't fit).
   const [usual, setUsual] = useState<UsualTimes>(() => usualTimes([]));
   useFocusEffect(useCallback(() => {
     refresh();
@@ -143,12 +140,7 @@ export default function JournalScreen() {
   const stepPhase: Phase | null = mode === 'steps' && onStartNight && !stepsDone ? start.open : null;
 
   const rested = draft.get('rested') ?? DEFAULT_RESTED;
-  const routineActions = {
-    onEdit: setEditing,
-    onHide: (item: RoutineItem) =>
-      store.routine.update(item.id, { archived: true }).then(reloadLists, (e) => setActionError((e as Error).message)),
-  };
-  const fields: FieldProps = { nightOf, draft, routine, tags, rested, routineActions, usual };
+  const fields: FieldProps = { nightOf, draft, tags, rested, usual };
   const filledNow = (phase: Phase) =>
     isFilled({ inBedAt: draft.get('inBedAt'), triedSleepAt: draft.get('triedSleepAt'), wokeAt: draft.get('wokeAt') }, phase);
 
@@ -186,7 +178,7 @@ export default function JournalScreen() {
                     <View key={phase} style={wide ? { flex: 1 } : undefined}>
                       <Section phase={phase} expanded={wide || expanded[phase]} collapsible={!wide} filled={filledNow(phase)}
                         onToggle={() => setExpanded((x) => ({ ...x, [phase]: !x[phase] }))}
-                        summary={summary(phase, entry, routine, draft.routineValues)}>
+                        summary={summary(phase, entry)}>
                         <AllSteps steps={phase === 'bedtime' ? bedtimeSteps(fields) : morningSteps(fields)} />
                       </Section>
                     </View>
@@ -213,7 +205,6 @@ export default function JournalScreen() {
           </>
         )}
       </ScrollView>
-      <RoutineItemEditor item={editing} onClose={() => setEditing(null)} onSaved={reloadLists} />
       <CalendarSheet visible={calendarOpen} selected={nightOf} onClose={() => setCalendarOpen(false)}
         onPick={(n) => {
           setCalendarOpen(false);
@@ -228,10 +219,8 @@ export default function JournalScreen() {
 type FieldProps = {
   nightOf: string;
   draft: ReturnType<typeof useDraft>;
-  routine: RoutineItem[];
   tags: Tag[];
   rested: number;
-  routineActions: { onEdit: (i: RoutineItem) => void; onHide: (i: RoutineItem) => void };
   usual: UsualTimes;
 };
 
@@ -247,11 +236,10 @@ interface Step {
   waitsForPrevious?: boolean;
 }
 
-function bedtimeSteps({ nightOf, draft, routine, routineActions, usual }: FieldProps): Step[] {
+function bedtimeSteps({ nightOf, draft, usual }: FieldProps): Step[] {
   const accent = colors.night;
   const inBed = draft.get('inBedAt');
   const tried = draft.get('triedSleepAt');
-  const items = routine.filter((r) => r.phase === 'bedtime');
   return [
     {
       id: 'inBed',
@@ -267,18 +255,6 @@ function bedtimeSteps({ nightOf, draft, routine, routineActions, usual }: FieldP
         usual={inBed ? clockOf(inBed) : usual.triedSleepAt}
         value={tried} onChange={(v) => draft.set('triedSleepAt', v)} />,
     },
-    ...(items.length ? [{
-      id: 'routine',
-      question: 'What did you do before bed?',
-      label: 'Before bed',
-      body: (
-        <>
-          <Routine items={items} values={draft.routineValues} onChange={draft.setRoutine}
-            nightOf={nightOf} phase="bedtime" accent={accent} {...routineActions} />
-          <EditHint />
-        </>
-      ),
-    }] : []),
     {
       id: 'note',
       question: 'Anything to note before sleeping?',
@@ -289,9 +265,8 @@ function bedtimeSteps({ nightOf, draft, routine, routineActions, usual }: FieldP
   ];
 }
 
-function morningSteps({ nightOf, draft, routine, rested, routineActions, usual }: FieldProps): Step[] {
+function morningSteps({ nightOf, draft, rested, usual }: FieldProps): Step[] {
   const accent = colors.morning;
-  const items = routine.filter((r) => r.phase === 'morning');
   const woke = draft.get('wokeAt');
   const started = draft.get('dayStartedAt');
   const latency = draft.get('sleepLatencyMin');
@@ -331,23 +306,19 @@ function morningSteps({ nightOf, draft, routine, rested, routineActions, usual }
         usual={woke ? clockOf(woke) : usual.dayStartedAt}
         value={started} onChange={(v) => draft.set('dayStartedAt', v)} />,
     },
-    ...(items.length ? [{
-      id: 'routine',
-      question: 'What have you done this morning?',
-      label: 'Morning routine',
-      body: (
-        <>
-          <Routine items={items} values={draft.routineValues} onChange={draft.setRoutine}
-            nightOf={nightOf} phase="morning" accent={accent} {...routineActions} />
-          <EditHint />
-        </>
-      ),
-    }] : []),
     {
-      id: 'rested',
-      question: 'How rested do you feel?',
-      label: 'How rested do you feel?',
-      body: <RestedScale value={rested} onChange={(v) => draft.set('rested', v)} />,
+      id: 'note',
+      question: 'Anything to note about the night?',
+      label: 'Note',
+      body: <Input multiline placeholder="e.g. insomnia, late to bed because of party"
+        value={draft.get('morningNote') ?? ''} onChangeText={(t) => draft.set('morningNote', t || null)} />,
+    },
+    {
+      id: 'dream',
+      question: 'Do you remember a dream?',
+      label: 'Dream',
+      body: <Input multiline placeholder="What do you remember? (or “don't remember”)"
+        value={draft.get('dream') ?? ''} onChangeText={(t) => draft.set('dream', t || null)} />,
     },
     {
       id: 'latency',
@@ -367,18 +338,10 @@ function morningSteps({ nightOf, draft, routine, rested, routineActions, usual }
       ),
     },
     {
-      id: 'note',
-      question: 'Anything to note about the night?',
-      label: 'Note',
-      body: <Input multiline placeholder="e.g. insomnia, late to bed because of party"
-        value={draft.get('morningNote') ?? ''} onChangeText={(t) => draft.set('morningNote', t || null)} />,
-    },
-    {
-      id: 'dream',
-      question: 'Do you remember a dream?',
-      label: 'Dream',
-      body: <Input multiline placeholder="What do you remember? (or “don't remember”)"
-        value={draft.get('dream') ?? ''} onChangeText={(t) => draft.set('dream', t || null)} />,
+      id: 'rested',
+      question: 'How rested do you feel?',
+      label: 'How rested do you feel?',
+      body: <RestedScale value={rested} onChange={(v) => draft.set('rested', v)} />,
     },
   ];
 }
@@ -514,11 +477,6 @@ function SaveLine({ status, dirty, error, onRetry }: { status: SaveStatus; dirty
   return <Text style={{ color: colors.muted, textAlign: 'center', marginTop: -space.sm, marginBottom: space.md, fontSize: 13 }}>{text}</Text>;
 }
 
-/** How to change the routine items: a swipe on touch screens, the Routines tab with a mouse. */
-function EditHint() {
-  return <Muted>{useWide() ? 'Change these items in the Routines tab.' : 'Swipe an item left to edit it.'}</Muted>;
-}
-
 function Label({ children }: { children: ReactNode }) {
   return (
     <Text style={{ color: colors.muted, fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: space.sm }}>
@@ -528,16 +486,12 @@ function Label({ children }: { children: ReactNode }) {
 }
 
 /** One line shown when a section is folded. */
-function summary(phase: Phase, e: Entry | null, routine: RoutineItem[], values: Record<string, RoutineValue>) {
-  const items = routine.filter((r) => r.phase === phase);
-  const done = items.filter((r) => values[r.id] != null && values[r.id] !== false).length;
-  const routinePart = items.length ? `${done}/${items.length} routine` : null;
+function summary(phase: Phase, e: Entry | null) {
   if (phase === 'bedtime') {
-    if (!e?.inBedAt && !e?.triedSleepAt && !done) return 'Not filled in yet';
+    if (!e?.inBedAt && !e?.triedSleepAt) return 'Not filled in yet';
     return [
       e?.inBedAt && `in bed ${formatClock(e.inBedAt)}`,
       e?.triedSleepAt && `trying ${formatClock(e.triedSleepAt)}`,
-      routinePart,
     ].filter(Boolean).join(' · ');
   }
   if (!e?.wokeAt && e?.rested == null) return 'Fill this in when you wake up';

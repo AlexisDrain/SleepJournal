@@ -1,9 +1,11 @@
-// Routines: tick off tonight's / this morning's routine like a to-do list, or switch to Edit
-// to change the items themselves (rename, add, hide) and manage tags.
+// Routines: tick off a night's bedtime / morning routine like a to-do list, or switch to Edit
+// to change the items themselves (rename, add, hide) and manage tags. It opens on the current
+// night; the arrows and the calendar reach earlier nights.
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { Routine } from '@/components/inputs';
+import { CalendarSheet } from '@/components/CalendarSheet';
+import { NightSwitcher, Routine } from '@/components/inputs';
 import { KIND_LABEL, RoutineItemEditor } from '@/components/RoutineItemEditor';
 import { SwipeRow } from '@/components/SwipeRow';
 import { Button, Card, Chip, ErrorBox, Input, Muted, Row, styles } from '@/components/ui';
@@ -12,7 +14,6 @@ import { requestSync } from '@/db/sync';
 import { confirmAction } from '@/lib/confirm';
 import { dueSlot } from '@/lib/journal';
 import { colors, space } from '@/lib/theme';
-import { nightLabel } from '@/lib/time';
 import { NARROW_PAGE, page, useWide, WIDE_PAGE } from '@/lib/useLayout';
 import type { Phase, RoutineItem, RoutineValue, Tag } from '@/lib/types';
 
@@ -27,19 +28,23 @@ export default function RoutinesScreen() {
   const [routine, setRoutine] = useState<RoutineItem[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [editing, setEditing] = useState<RoutineItem | null>(null);
-  // Ticks go to the night that's current right now (last night until 3 PM, tonight after).
+  // Which night the ticks belong to. Opening the tab starts on the night that's current right
+  // now (last night until 3 PM, tonight after).
   const [nightOf, setNightOf] = useState(() => dueSlot().nightOf);
+  const shown = useRef(nightOf); // the latest choice, for loads that finish out of order
   const [values, setValues] = useState<Record<string, RoutineValue>>({});
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const wide = useWide();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (night: string = shown.current) => {
     setError(null);
+    shown.current = night;
+    setNightOf(night);
     try {
-      const night = dueSlot().nightOf;
       const [t, r, entry] = await Promise.all([store.tags.list(), store.routine.list(), store.getEntry(night)]);
+      if (shown.current !== night) return; // another night was picked meanwhile
       setTags(t);
       setRoutine(r);
-      setNightOf(night);
       setValues(entry?.routine ?? {});
     } catch (e) {
       setError((e as Error).message);
@@ -70,9 +75,16 @@ export default function RoutinesScreen() {
   };
 
   useFocusEffect(useCallback(() => {
-    load();
+    load(dueSlot().nightOf);
     return () => void flush(); // leaving the tab: write anything still waiting
   }, [load, flush]));
+
+  /** Show another night (never one that hasn't started yet). */
+  const goTo = async (night: string) => {
+    if (night > dueSlot().nightOf) return;
+    await flush(); // ticks still waiting belong to the night being left
+    await load(night);
+  };
 
   const act = (fn: () => Promise<unknown>) => async () => {
     try {
@@ -94,12 +106,14 @@ export default function RoutinesScreen() {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.scroll, page(wide ? WIDE_PAGE : NARROW_PAGE)]} keyboardShouldPersistTaps="handled">
-        {error && <ErrorBox message={error} onRetry={load} />}
+        {error && <ErrorBox message={error} onRetry={() => load()} />}
+        {!editMode && (
+          <NightSwitcher nightOf={nightOf} onChange={goTo} onOpenCalendar={() => setCalendarOpen(true)}
+            onToday={nightOf === dueSlot().nightOf ? null : () => void goTo(dueSlot().nightOf)} />
+        )}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.md }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>
-              {editMode ? 'Edit routines' : nightLabel(nightOf)}
-            </Text>
+            {editMode && <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>Edit routines</Text>}
             <Muted>
               {editMode
                 ? 'Tap an item to rename it, change what it records, or hide it.'
@@ -154,7 +168,12 @@ export default function RoutinesScreen() {
           </>
         )}
       </ScrollView>
-      <RoutineItemEditor item={editing} onClose={() => setEditing(null)} onSaved={load} />
+      <RoutineItemEditor item={editing} onClose={() => setEditing(null)} onSaved={() => load()} />
+      <CalendarSheet visible={calendarOpen} selected={nightOf} onClose={() => setCalendarOpen(false)}
+        onPick={(n) => {
+          setCalendarOpen(false);
+          goTo(n);
+        }} />
     </KeyboardAvoidingView>
   );
 }

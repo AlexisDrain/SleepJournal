@@ -43,7 +43,7 @@ export default function WelcomeScreen() {
         <>
           <Text style={{ color: colors.text, fontSize: 26, fontWeight: '800' }}>How it works</Text>
           <Step icon="☾" color={colors.night} title="At bedtime"
-            body="Note when you got in bed and started trying to sleep, and tick off your bedtime routine." />
+            body="Note when you got in bed and started trying to sleep. Your bedtime and morning checklists are in the Routines tab." />
           <Step icon="☀" color={colors.morning} title="In the morning"
             body="Say how rested you feel, how long it took to fall asleep, and when you woke up." />
           <Step icon="≡" color={colors.muted} title="Over time"
