@@ -30,7 +30,7 @@
  * Bump this whenever the script changes in a way the app should know about. The app compares it
  * with the version it was built for and tells the user when their sheet's script is out of date.
  */
-const SCRIPT_VERSION = 3;
+const SCRIPT_VERSION = 4;
 
 const NIGHT = 'Night of';
 const UPDATED = 'Updated';
@@ -103,9 +103,15 @@ function doPost(e) {
   lock.waitLock(30000); // one sync at a time
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    if (req.action === 'ping') return json_({ ok: true, sheet: ss.getName(), version: SCRIPT_VERSION });
+    // url: this spreadsheet's own address, for the app's "Open sheet" button. Opening it still needs your Google login.
+    if (req.action === 'ping') return json_({ ok: true, sheet: ss.getName(), url: ss.getUrl(), version: SCRIPT_VERSION });
     if (req.action === 'push') return json_(withVersion_(push_(ss, req.columns, req.rows)));
-    if (req.action === 'pull') return json_(withVersion_(pull_(ss, req.since || '')));
+    if (req.action === 'pull') {
+      const pulled = pull_(ss, req.since || '');
+      pulled.sheet = ss.getName();
+      pulled.url = ss.getUrl();
+      return json_(withVersion_(pulled));
+    }
     if (req.action === 'routine-get') return json_(withVersion_({ ok: true, items: routineGet_(ss) }));
     if (req.action === 'routine-set') return json_(withVersion_({ ok: true, items: routineSet_(ss, req.items || []) }));
     return json_({ ok: false, error: 'Unknown action' });

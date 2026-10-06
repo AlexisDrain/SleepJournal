@@ -20,6 +20,7 @@ import type { Phase, RoutineItem, RoutineValue, Tag } from '@/lib/types';
 const PHASES: Phase[] = ['bedtime', 'morning'];
 const PHASE_NAME: Record<Phase, string> = { bedtime: 'Bedtime', morning: 'Morning' };
 const PHASE_COLOR: Record<Phase, string> = { bedtime: colors.night, morning: colors.morning };
+const PHASE_ICON: Record<Phase, string> = { bedtime: '☾', morning: '☀' }; // the same as the Journal's sections
 const SAVE_DELAY_MS = 500;
 
 export default function RoutinesScreen() {
@@ -134,7 +135,12 @@ export default function RoutinesScreen() {
             const items = routine.filter((r) => r.phase === phase && !r.archived);
             return (
               <View key={phase} style={wide ? { flex: 1 } : undefined}>
-                <Card title={`${PHASE_NAME[phase]} routine`}>
+                {/* The colored left edge matches the Journal's Bedtime / Morning sections. */}
+                <View style={[styles.card, { borderLeftWidth: 3, borderLeftColor: PHASE_COLOR[phase] }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                    <Text style={{ color: PHASE_COLOR[phase], fontSize: 22 }}>{PHASE_ICON[phase]}</Text>
+                    <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>{PHASE_NAME[phase]}</Text>
+                  </View>
                   {editMode ? (
                     <>
                       <View>
@@ -160,7 +166,7 @@ export default function RoutinesScreen() {
                   ) : (
                     <Muted>Nothing here yet. Tap Edit to add items.</Muted>
                   )}
-                </Card>
+                </View>
               </View>
             );
           })}

@@ -111,6 +111,9 @@ enter the same two things there.
 - **Keep the URL and key secret.** Anyone who has both can read and change your journal sheet.
   Don't commit them, post them or email them. If they ever leak, run **`rotateSecret`** and paste
   the new key into the app; the old one stops working.
+- **Open sheet**: once connected, **Settings → Google Sheet → Open sheet** opens the spreadsheet
+  (in the Google Sheets app or your browser). You still need to be signed in to your Google
+  account to see it; the button only saves you finding the file.
 - **Editing in Sheets is fine.** Changing a cell marks that row as updated (the *Updated* column),
   and the app picks it up on its next sync. Typing a new row with a *Night of* date also works.
 - **Your own columns are kept.** Add columns to the right; they move with their row.

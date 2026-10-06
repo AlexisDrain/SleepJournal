@@ -1,14 +1,15 @@
 // Sheet: the journal as a spreadsheet, inside the app. It's drawn from the same table the export
 // builds (so it matches what you'd see in Google Sheets or Excel), straight from the database on
-// this device: no internet or Google needed. Newest night on top.
+// this device: no internet or Google needed. Like the Google Sheet, it has one page per year with
+// the oldest night on top; it opens scrolled to the bottom, where the newest night is.
 //
 // The date column stays put while the rest scrolls sideways, and edge arrows show (and jump to)
 // the columns that are off screen, so it's clear on a phone that there is more to the right.
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, FlatList, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { ExportSheet } from '@/components/ExportSheet';
-import { Button, ErrorBox, Muted, styles } from '@/components/ui';
+import { Button, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { buildTable } from '@/db/csv';
 import type { ColumnGroup, SheetColumn, SheetValue } from '@/db/xlsx';
 import { loadExcluded, loadRoutineDetail } from '@/lib/exportPrefs';
@@ -25,6 +26,8 @@ const TINT: Record<ColumnGroup, [string, string]> = {
 };
 const widthOf = (c: SheetColumn) => Math.max(72, Math.round(c.width * 8.5));
 
+const yearOf = (row: SheetValue[]) => String(row[0] ?? '').slice(-4);
+
 /** "9-26-2026" → "2026-09-26" */
 function toNightOf(v: SheetValue): string | null {
   const m = String(v ?? '').match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
@@ -33,7 +36,8 @@ function toNightOf(v: SheetValue): string | null {
 
 export default function SheetScreen() {
   const [columns, setColumns] = useState<SheetColumn[]>([]);
-  const [rows, setRows] = useState<SheetValue[][]>([]);
+  const [allRows, setAllRows] = useState<SheetValue[][]>([]);
+  const [chosenYear, setChosenYear] = useState<string | null>(null); // null = the latest year
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
@@ -47,14 +51,41 @@ export default function SheetScreen() {
       // The same field choices as exports, so this is a preview of what an export would contain.
       const t = await buildTable({ exclude: await loadExcluded(), routineDetail: await loadRoutineDetail(), plainHeaders: true });
       setColumns(t.columns);
-      setRows(t.rows.reverse());
+      setAllRows(t.rows); // oldest first, as in the Google Sheet
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
   }, []);
-  useFocusEffect(useCallback(() => void load(), [load]));
+
+  // Open at the bottom: the newest night is the last row. Once per opening (or per year picked),
+  // as soon as the list reports its size. Browsers don't always report it, so there the jump is
+  // also made a moment after the rows are drawn (see the effect below).
+  const list = useRef<FlatList<SheetValue[]>>(null);
+  const jumpWanted = useRef(true);
+  const [opened, setOpened] = useState(0);
+  const jumpToEnd = useCallback((size: number) => {
+    if (!jumpWanted.current || size <= 0) return;
+    jumpWanted.current = false;
+    list.current?.scrollToEnd({ animated: false });
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    jumpWanted.current = true;
+    load().then(() => setOpened((n) => n + 1));
+  }, [load]));
+
+  // One page per year, like the Google Sheet's tabs. Opens on the latest year.
+  const years = useMemo(() => [...new Set(allRows.map(yearOf))].sort(), [allRows]);
+  const year = chosenYear && years.includes(chosenYear) ? chosenYear : years.at(-1) ?? '';
+  const rows = useMemo(() => allRows.filter((r) => yearOf(r) === year), [allRows, year]);
+
+  useEffect(() => {
+    if (!rows.length) return;
+    const t = setTimeout(() => list.current?.scrollToEnd({ animated: false }), 60);
+    return () => clearTimeout(t);
+  }, [opened, year, rows.length]);
 
   // ---------- sideways scrolling ----------
   const scroller = useRef<ScrollView>(null);
@@ -133,12 +164,24 @@ export default function SheetScreen() {
           <Muted>
             {loading
               ? 'Loading…'
-              : `${rows.length} night${rows.length === 1 ? '' : 's'}${rowsOpenNights ? ' · click a row to open it' : ''}${scrollable ? ' · swipe sideways for more columns →' : ''}`}
+              : `${rows.length} night${rows.length === 1 ? '' : 's'}${years.length > 1 ? ` in ${year}` : ''}${rowsOpenNights ? ' · click a row to open it' : ''}${scrollable ? ' · swipe sideways for more columns →' : ''}`}
           </Muted>
         </View>
         <Button title="Fields & export…" small onPress={() => setChoosing(true)} color={colors.chip} textColor={colors.text} />
       </View>
       {error && <View style={{ paddingHorizontal: space.lg }}><ErrorBox message={error} onRetry={load} /></View>}
+      {years.length > 1 && (
+        <View style={{ flexGrow: 0 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.lg, paddingBottom: space.md }}>
+            {years.map((y) => <Chip key={y} label={y} selected={y === year} onPress={() => {
+              if (y === year) return;
+              jumpWanted.current = true; // the list is rebuilt for the new year
+              setChosenYear(y);
+            }} />)}
+          </ScrollView>
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator color={colors.night} />
@@ -172,6 +215,9 @@ export default function SheetScreen() {
                 {pinned(columns[0].header, TINT[columns[0].group][0], HEADER_HEIGHT, true)}
               </View>
               <FlatList
+                key={year}
+                ref={list}
+                onContentSizeChange={(_, h) => jumpToEnd(h)}
                 data={rows}
                 keyExtractor={(r, i) => String(r[0] ?? i)}
                 getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}

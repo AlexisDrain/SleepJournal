@@ -21,12 +21,14 @@ const CONNECTION_KEY = 'sleepjournal.sheetConnection';
 const STATE_KEY = 'sleepjournal.sheetSync.v1';
 const PUSH_BATCH = 200;
 /** The version of google-sheets/SleepJournalSync.gs this app was built for (its SCRIPT_VERSION). */
-export const LATEST_SCRIPT_VERSION = 3;
+export const LATEST_SCRIPT_VERSION = 4;
 
 export interface Connection { url: string; secret: string }
 
 export interface SyncState {
   sheetName: string | null;
+  /** The spreadsheet's address, for "Open sheet" (null until a version 4+ script reports it). */
+  sheetUrl: string | null;
   lastPushed: string; // newest `updatedAt` already sent
   lastPulled: string; // newest sheet "Updated" already received
   lastSyncAt: string | null;
@@ -36,7 +38,7 @@ export interface SyncState {
   /** The sheet script's version, as it last reported (scripts from before versions existed count as 1). */
   scriptVersion: number;
 }
-const EMPTY_STATE: SyncState = { sheetName: null, lastPushed: '', lastPulled: '', lastSyncAt: null, lastError: null, layout: '', scriptVersion: LATEST_SCRIPT_VERSION };
+const EMPTY_STATE: SyncState = { sheetName: null, sheetUrl: null, lastPushed: '', lastPulled: '', lastSyncAt: null, lastError: null, layout: '', scriptVersion: LATEST_SCRIPT_VERSION };
 
 /** "https://script.google.com/macros/s/…/exec#<secret>" → its parts, or null if it isn't one. */
 export function parseConnectionCode(code: string): Connection | null {
@@ -117,13 +119,17 @@ export function tidyConnection(urlInput: string, keyInput: string): string {
   return `${url}#${key}`;
 }
 
+/** Only ever open a real Google Sheets address, whatever the script answered. */
+const sheetAddress = (url: unknown): string | null =>
+  typeof url === 'string' && /^https:\/\/docs\.google\.com\/spreadsheets\/[\w\-/?=#&.%]*$/.test(url) ? url : null;
+
 /** Save a connection after checking it works. Returns the spreadsheet's name. */
 export async function connect(urlInput: string, keyInput = ''): Promise<string> {
   const code = tidyConnection(urlInput, keyInput);
   const conn = parseConnectionCode(code)!;
-  const { sheet, version } = await call<{ sheet: string; version?: number }>(conn, 'ping');
+  const { sheet, url, version } = await call<{ sheet: string; url?: string; version?: number }>(conn, 'ping');
   await secureStorage.set(CONNECTION_KEY, code);
-  await saveState({ ...EMPTY_STATE, sheetName: sheet, scriptVersion: version ?? 1 }); // a new sheet starts from scratch: push everything
+  await saveState({ ...EMPTY_STATE, sheetName: sheet, sheetUrl: sheetAddress(url), scriptVersion: version ?? 1 }); // a new sheet starts from scratch: push everything
   return sheet;
 }
 
@@ -251,8 +257,10 @@ async function runSync() {
     state.layout = layout;
 
     // pull
-    const { tabs, version } = await call<{ tabs: PullTab[]; version?: number }>(conn, 'pull', { since: state.lastPulled });
+    const { tabs, version, sheet, url } = await call<{ tabs: PullTab[]; version?: number; sheet?: string; url?: string }>(conn, 'pull', { since: state.lastPulled });
     state.scriptVersion = version ?? 1;
+    if (sheet) state.sheetName = sheet; // the sheet may have been renamed
+    state.sheetUrl = sheetAddress(url) ?? state.sheetUrl;
     const local = new Map(entries.map((e) => [e.nightOf, e]));
     const db = await getDb();
     let pulled = 0;

@@ -80,13 +80,19 @@ export function GoogleSheetCard() {
           </Muted>
           {state && state.scriptVersion < LATEST_SCRIPT_VERSION && (
             <Text style={{ color: colors.morning }}>
-              Your sheet's script is an older version. Your nights still sync, but changes to your routine
-              list (new, renamed or reordered items) won't reach your other devices until it's updated.
-              To update it, paste the current script into the sheet and deploy a new version (see "Updating
+              Your sheet's script is an older version. Your nights still sync, but
+              {state.scriptVersion < 3
+                ? " changes to your routine list (new, renamed or reordered items) won't reach your other devices"
+                : ' the "Open sheet" button needs the newer script'}
+              {' '}until it's updated. To update it, paste the current script into the sheet and deploy a new version (see "Updating
               the script" in the setup guide).
             </Text>
           )}
           <Button title="Sync now" onPress={onSync} busy={busy} small />
+          {state?.sheetUrl && (
+            <Button title="Open sheet ↗" small color={colors.chip} textColor={colors.text}
+              onPress={() => Linking.openURL(state.sheetUrl!).catch(() => {})} />
+          )}
           <Button title="Disconnect" onPress={onDisconnect} small color={colors.chip} textColor={colors.text} />
         </>
       ) : (
