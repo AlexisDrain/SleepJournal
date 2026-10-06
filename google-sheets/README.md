@@ -65,9 +65,17 @@ Open the script editor from your sheet: **Extensions → Apps Script**.
 ### 1. Create your secret key
 
 1. In the function dropdown at the top, pick **`setup`**, then click **Run**.
-2. Google asks you to authorize the script. Because it's a personal script and not a published
+2. **If you get "Access blocked: Authorization Error … The OAuth client was not found. Error 401:
+   invalid_client"**, Google hasn't finished setting up the script's sign-in yet. This can happen
+   on a brand-new script, especially a fresh copy of the template; nothing is wrong with your
+   account or the code. (No error? Skip to the next step.)
+   1. Add a blank line anywhere in the code and click **Save**.
+   2. Wait a couple of minutes, reload the editor page, and run `setup` again.
+   3. Still there? Open the sheet in a private browser window signed in to only one Google
+      account, and run `setup` from there.
+3. Google asks you to authorize the script. Because it's a personal script and not a published
    app, it shows *"Google hasn't verified this app"*: click **Advanced → Go to … (unsafe)**.
-3. Check what it asks for. It should be exactly one permission: **"View and manage spreadsheets
+4. Check what it asks for. It should be exactly one permission: **"View and manage spreadsheets
    that this application has been installed in"**, meaning this one spreadsheet. If it lists
    anything else (for example *"Display and run third-party web content in prompts and sidebars"*
    or anything about Google Drive), click **Cancel**, do step B.4 above, and run `setup` again.

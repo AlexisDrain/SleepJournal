@@ -1,15 +1,19 @@
 // Sheet: the journal as a spreadsheet, inside the app. It's drawn from the same table the export
 // builds (so it matches what you'd see in Google Sheets or Excel), straight from the database on
-// this device: no internet or Google needed. Newest night on top; tap a row to open that night.
+// this device: no internet or Google needed. Newest night on top.
+//
+// The date column stays put while the rest scrolls sideways, and edge arrows show (and jump to)
+// the columns that are off screen, so it's clear on a phone that there is more to the right.
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, FlatList, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { ExportSheet } from '@/components/ExportSheet';
 import { Button, ErrorBox, Muted, styles } from '@/components/ui';
 import { buildTable } from '@/db/csv';
 import type { ColumnGroup, SheetColumn, SheetValue } from '@/db/xlsx';
 import { loadExcluded, loadRoutineDetail } from '@/lib/exportPrefs';
 import { colors, space } from '@/lib/theme';
+import { useWide } from '@/lib/useLayout';
 
 const ROW_HEIGHT = 34;
 const HEADER_HEIGHT = 44;
@@ -33,6 +37,9 @@ export default function SheetScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
+  // On a phone, rows are for reading: a stray tap while swiping shouldn't jump to another night.
+  // With a mouse on a wide screen, clicking a row opens that night in the Journal.
+  const rowsOpenNights = useWide();
 
   const load = useCallback(async () => {
     setError(null);
@@ -49,13 +56,85 @@ export default function SheetScreen() {
   }, []);
   useFocusEffect(useCallback(() => void load(), [load]));
 
+  // ---------- sideways scrolling ----------
+  const scroller = useRef<ScrollView>(null);
+  const scrollX = useRef(new Animated.Value(0)).current; // drives the pinned date column
+  const offset = useRef(0);
+  // How wide the table's window is. Measured when the platform reports it (layout or scroll
+  // events); until then the screen width is a close enough guess to decide whether to show arrows.
+  const windowWidth = useWindowDimensions().width;
+  const [measuredWidth, setMeasuredWidth] = useState(0);
+  const viewWidth = measuredWidth || windowWidth;
+  const [more, setMore] = useState({ left: false, right: true });
+
   const totalWidth = columns.reduce((sum, c) => sum + widthOf(c), 0);
+  const pinnedWidth = columns.length ? widthOf(columns[0]) : 0;
+  const scrollable = viewWidth > 0 && totalWidth > viewWidth + 1;
+
+  const updateArrows = useCallback((x: number, width = viewWidth) => {
+    offset.current = x;
+    const next = { left: x > 8, right: width > 0 && x < totalWidth - width - 8 };
+    setMore((prev) => (prev.left === next.left && prev.right === next.right ? prev : next));
+  }, [totalWidth, viewWidth]);
+
+  // One scroll handler for the life of the screen (it reads the latest state through a ref).
+  // It moves the pinned column and keeps the arrows right.
+  //   Phones: the pinned column is driven natively, so it can't lag behind your finger.
+  //   Web: there is no native driver, so the position is simply set on each scroll event.
+  const latest = useRef({ updateArrows, measuredWidth, viewWidth });
+  latest.current = { updateArrows, measuredWidth, viewWidth };
+  const onScroll = useMemo(() => {
+    type ScrollEvent = { nativeEvent: { contentOffset: { x: number }; layoutMeasurement?: { width: number } } };
+    const track = (e: ScrollEvent) => {
+      const now = latest.current;
+      const w = e.nativeEvent.layoutMeasurement?.width;
+      if (w && w !== now.measuredWidth) setMeasuredWidth(w);
+      now.updateArrows(e.nativeEvent.contentOffset.x, w || now.viewWidth);
+    };
+    if (Platform.OS === 'web') {
+      return (e: ScrollEvent) => {
+        scrollX.setValue(e.nativeEvent.contentOffset.x);
+        track(e);
+      };
+    }
+    return Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true, listener: track });
+  }, [scrollX]);
+
+  /** Jump most of a screen left or right (a little overlap keeps your place). */
+  const jump = (direction: 1 | -1) => {
+    const step = Math.max(120, viewWidth - pinnedWidth - 40);
+    const x = Math.max(0, Math.min(totalWidth - viewWidth, offset.current + direction * step));
+    // Smooth on phones; instant on the web, where a browser can skip the animation (e.g. in a background tab).
+    scroller.current?.scrollTo({ x, animated: Platform.OS !== 'web' });
+    // Record where we are now instead of waiting for a scroll event to say so, so the next tap
+    // continues from here and the arrows update at once.
+    updateArrows(x);
+    if (Platform.OS === 'web') scrollX.setValue(x);
+  };
+
+  /** The first cell of a row or the header: it slides right exactly as far as the table slides left. */
+  const pinned = (content: string, background: string, height: number, bold: boolean) => (
+    <Animated.View
+      style={{
+        position: 'absolute', left: 0, top: 0, width: pinnedWidth, height, backgroundColor: background,
+        justifyContent: 'center', paddingHorizontal: 8, transform: [{ translateX: scrollX }],
+        borderRightWidth: 2, borderRightColor: colors.cardBorder, borderBottomWidth: bold ? 0 : 1, borderBottomColor: colors.bg,
+      }}>
+      <Text numberOfLines={bold ? 2 : 1} style={{ color: colors.text, fontSize: bold ? 12 : 13, fontWeight: bold ? '700' : '600' }}>
+        {content}
+      </Text>
+    </Animated.View>
+  );
 
   return (
     <View style={styles.screen}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}>
         <View style={{ flex: 1 }}>
-          <Muted>{loading ? 'Loading…' : `${rows.length} night${rows.length === 1 ? '' : 's'} · newest first · tap a row to open it`}</Muted>
+          <Muted>
+            {loading
+              ? 'Loading…'
+              : `${rows.length} night${rows.length === 1 ? '' : 's'}${rowsOpenNights ? ' · click a row to open it' : ''}${scrollable ? ' · swipe sideways for more columns →' : ''}`}
+          </Muted>
         </View>
         <Button title="Fields & export…" small onPress={() => setChoosing(true)} color={colors.chip} textColor={colors.text} />
       </View>
@@ -66,44 +145,62 @@ export default function SheetScreen() {
       ) : rows.length === 0 ? (
         <View style={{ padding: space.lg }}><Muted>Nothing here yet. Nights you fill in on the Journal tab show up as rows.</Muted></View>
       ) : (
-        // Sideways scrolling moves the header and rows together; the rows scroll up and down under the header.
-        <ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ width: totalWidth }}>
-          <View style={{ width: totalWidth, flex: 1 }}>
-            <View style={{ flexDirection: 'row', height: HEADER_HEIGHT }}>
-              {columns.map((c) => (
-                <View key={c.header} style={{
-                  width: widthOf(c), backgroundColor: TINT[c.group][0], justifyContent: 'center', paddingHorizontal: 8,
-                  borderRightWidth: 1, borderRightColor: colors.bg,
-                }}>
-                  <Text numberOfLines={2} style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{c.header}</Text>
-                </View>
-              ))}
+        <View style={{ flex: 1 }} onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          setMeasuredWidth(w);
+          updateArrows(offset.current, w);
+        }}>
+          {/* Sideways scrolling moves the header and rows together; the rows scroll up and down under the header. */}
+          <Animated.ScrollView
+            ref={scroller}
+            horizontal
+            persistentScrollbar
+            style={{ flex: 1 }}
+            contentContainerStyle={{ width: totalWidth }}
+            scrollEventThrottle={16}
+            onScroll={onScroll}>
+            <View style={{ width: totalWidth, flex: 1 }}>
+              <View style={{ flexDirection: 'row', height: HEADER_HEIGHT, zIndex: 2 }}>
+                {columns.map((c, i) => (
+                  <View key={c.header} style={{
+                    width: widthOf(c), backgroundColor: TINT[c.group][0], justifyContent: 'center', paddingHorizontal: 8,
+                    borderRightWidth: 1, borderRightColor: colors.bg,
+                  }}>
+                    {i > 0 && <Text numberOfLines={2} style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{c.header}</Text>}
+                  </View>
+                ))}
+                {pinned(columns[0].header, TINT[columns[0].group][0], HEADER_HEIGHT, true)}
+              </View>
+              <FlatList
+                data={rows}
+                keyExtractor={(r, i) => String(r[0] ?? i)}
+                getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
+                initialNumToRender={30}
+                windowSize={7}
+                renderItem={({ item }) => {
+                  const night = toNightOf(item[0]);
+                  return (
+                    <Pressable disabled={!night || !rowsOpenNights} onPress={() => night && router.navigate({ pathname: '/', params: { night } })}
+                      style={{ flexDirection: 'row', height: ROW_HEIGHT }}>
+                      {columns.map((c, i) => (
+                        <View key={c.header} style={{
+                          width: widthOf(c), backgroundColor: TINT[c.group][1], justifyContent: 'center', paddingHorizontal: 8,
+                          borderRightWidth: 1, borderRightColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.bg,
+                        }}>
+                          {i > 0 && <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13 }}>{item[i] ?? ''}</Text>}
+                        </View>
+                      ))}
+                      {pinned(String(item[0] ?? ''), TINT[columns[0].group][1], ROW_HEIGHT, false)}
+                    </Pressable>
+                  );
+                }}
+              />
             </View>
-            <FlatList
-              data={rows}
-              keyExtractor={(r, i) => String(r[0] ?? i)}
-              getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
-              initialNumToRender={30}
-              windowSize={7}
-              renderItem={({ item }) => {
-                const night = toNightOf(item[0]);
-                return (
-                  <Pressable disabled={!night} onPress={() => night && router.navigate({ pathname: '/', params: { night } })}
-                    style={{ flexDirection: 'row', height: ROW_HEIGHT }}>
-                    {columns.map((c, i) => (
-                      <View key={c.header} style={{
-                        width: widthOf(c), backgroundColor: TINT[c.group][1], justifyContent: 'center', paddingHorizontal: 8,
-                        borderRightWidth: 1, borderRightColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.bg,
-                      }}>
-                        <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13 }}>{item[i] ?? ''}</Text>
-                      </View>
-                    ))}
-                  </Pressable>
-                );
-              }}
-            />
-          </View>
-        </ScrollView>
+          </Animated.ScrollView>
+
+          {scrollable && more.right && <EdgeArrow side="right" onPress={() => jump(1)} />}
+          {more.left && <EdgeArrow side="left" inset={pinnedWidth} onPress={() => jump(-1)} />}
+        </View>
       )}
 
       <ExportSheet visible={choosing} onError={setError}
@@ -112,5 +209,21 @@ export default function SheetScreen() {
           setTimeout(load, 300); // the field choices may have changed
         }} />
     </View>
+  );
+}
+
+/** A round arrow on the table's edge: shows that more columns are that way, and jumps to them. */
+function EdgeArrow({ side, inset = 0, onPress }: { side: 'left' | 'right'; inset?: number; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={10}
+      accessibilityRole="button" accessibilityLabel={side === 'right' ? 'Show more columns to the right' : 'Show columns to the left'}
+      style={{
+        position: 'absolute', top: HEADER_HEIGHT + 12, [side]: (side === 'left' ? inset : 0) + 8,
+        width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: colors.night, opacity: 0.95,
+        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4)', elevation: 6,
+      }}>
+      <Text style={{ color: colors.bg, fontSize: 22, fontWeight: '800', marginTop: -2 }}>{side === 'right' ? '›' : '‹'}</Text>
+    </Pressable>
   );
 }

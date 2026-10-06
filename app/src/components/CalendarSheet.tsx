@@ -1,10 +1,11 @@
 // Pick a night from a month calendar. Dots show which nights already have something logged.
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { store } from '@/db/store';
 import { isFilled } from '@/lib/journal';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, space } from '@/lib/theme';
 import { toDateString } from '@/lib/time';
+import { Panel } from './Panel';
 import { Button, Muted } from './ui';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -54,13 +55,7 @@ export function CalendarSheet({ visible, selected, onPick, onClose }: {
   const title = new Date(year, month - 1, 1).toLocaleDateString([], { month: 'long', year: 'numeric' });
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: '#0008' }} onPress={onClose} />
-      <View style={{
-        width: '100%', maxWidth: 480, alignSelf: 'center', backgroundColor: colors.card,
-        borderTopLeftRadius: radius * 2, borderTopRightRadius: radius * 2,
-        padding: space.xl, paddingBottom: space.xl * 2, gap: space.md,
-      }}>
+    <Panel visible={visible} onClose={onClose} maxWidth={440}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Pressable onPress={() => move(-1)} hitSlop={12} accessibilityLabel="Previous month">
             <Text style={{ color: colors.muted, fontSize: 24, paddingHorizontal: space.md }}>‹</Text>
@@ -112,7 +107,6 @@ export function CalendarSheet({ visible, selected, onPick, onClose }: {
           {'  '}<Text style={{ color: colors.morning }}>●</Text> partly
         </Muted>
         <Button title="Close" small onPress={onClose} color={colors.chip} textColor={colors.text} />
-      </View>
-    </Modal>
+    </Panel>
   );
 }

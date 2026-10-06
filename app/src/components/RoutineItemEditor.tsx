@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { store } from '@/db/store';
 import type { Phase, RoutineItem } from '@/lib/types';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, space } from '@/lib/theme';
+import { Panel } from './Panel';
 import { Button, Chip, Input, Muted, styles } from './ui';
 
 export const KIND_LABEL: Record<RoutineItem['kind'], string> = {
@@ -49,13 +50,7 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
 
   const accent = PHASE_COLOR[phase];
   return (
-    <Modal visible={item !== null} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: '#0008' }} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={{
-          width: '100%', maxWidth: 560, alignSelf: 'center', backgroundColor: colors.card, borderTopLeftRadius: radius * 2, borderTopRightRadius: radius * 2,
-          padding: space.xl, paddingBottom: space.xl * 2, gap: space.md,
-        }}>
+    <Panel visible={item !== null} onClose={onClose}>
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>Edit routine item</Text>
           <Input value={label} onChangeText={setLabel} placeholder="Label" autoFocus={false} />
           <Muted>Checking it off also records:</Muted>
@@ -83,8 +78,6 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
               <Button title="Cancel" small color={colors.chip} textColor={colors.text} onPress={onClose} />
             </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </Panel>
   );
 }

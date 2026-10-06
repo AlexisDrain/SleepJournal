@@ -1,11 +1,12 @@
 // "Export…" panel: pick which columns to include, then export as .xlsx or CSV.
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { exportableColumns, exportCsv, exportXlsx, REQUIRED_COLUMN } from '@/db/csv';
 import type { ColumnGroup, SheetColumn } from '@/db/xlsx';
 import { requestSync } from '@/db/sync';
 import { loadExcluded, loadFillGaps, loadRoutineDetail, saveExcluded, saveFillGaps, saveRoutineDetail } from '@/lib/exportPrefs';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, space } from '@/lib/theme';
+import { Panel } from './Panel';
 import { Button, Muted } from './ui';
 
 const GROUPS: { group: ColumnGroup; title: string; color: string }[] = [
@@ -82,17 +83,12 @@ export function ExportSheet({ visible, onClose, onError }: {
   const partial = columns?.some((c) => excluded.has(c.header) && c.header !== REQUIRED_COLUMN);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={runPending}>
-      <Pressable style={{ flex: 1, backgroundColor: '#0008' }} onPress={onClose} />
-      <View style={{
-        maxHeight: '80%', width: '100%', maxWidth: 560, alignSelf: 'center', backgroundColor: colors.card, borderTopLeftRadius: radius * 2, borderTopRightRadius: radius * 2,
-        padding: space.xl, paddingBottom: space.xl * 2, gap: space.md,
-      }}>
+    <Panel visible={visible} onClose={onClose} onDismiss={runPending}>
         <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>Export</Text>
         {!columns ? (
           <ActivityIndicator color={colors.night} />
         ) : (
-          <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: space.md }}>
+          <ScrollView style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ gap: space.md }}>
             {GROUPS.map(({ group, title, color }) => {
               const cols = columns.filter((c) => c.group === group && (routineDetail || !c.detail));
               if (!cols.length) return null;
@@ -163,7 +159,6 @@ export function ExportSheet({ visible, onClose, onError }: {
             <Button title="Done" small onPress={() => start(null)} color={colors.chip} textColor={colors.text} />
           </View>
         </View>
-      </View>
-    </Modal>
+    </Panel>
   );
 }

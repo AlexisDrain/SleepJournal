@@ -4,19 +4,21 @@ import { addDays, currentNight, weekdayOf } from '@/lib/time';
 import type { Entry, EntryPatch, Nap, RoutineItem, Stats, Tag } from '@/lib/types';
 import { migrate } from './migrations';
 import { transaction } from './transaction';
+import { claimWebDatabase, explainStorageError } from './webStorage';
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 /** Opens (and on first use, creates + migrates) sleep-journal.db. */
 export function getDb(): Promise<SQLite.SQLiteDatabase> {
-  dbPromise ??= SQLite.openDatabaseAsync('sleep-journal.db')
+  dbPromise ??= claimWebDatabase() // web: only one tab may hold the database
+    .then(() => SQLite.openDatabaseAsync('sleep-journal.db'))
     .then(async (db) => {
       await migrate(db);
       return db;
     })
     .catch((e) => {
       dbPromise = null; // let the next call retry
-      throw e;
+      throw explainStorageError(e);
     });
   return dbPromise;
 }
