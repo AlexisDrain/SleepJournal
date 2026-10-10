@@ -10,7 +10,7 @@ Built with Expo (React Native + TypeScript) and **SQLite** with hand-written SQL
 
 ```
 app/
-  src/app/        screens (Expo Router): Journal, Routines, Sheet, History, Settings, Welcome
+  src/app/        screens (Expo Router): Journal, Routines, Sheet, Settings, Welcome
   src/db/         migrations.ts (schema), store.ts (queries), csv.ts (export/import)
   src/components/ UI pieces: time pickers, routine checklist, swipe rows…
   src/lib/        types, date/time rules, reminders
@@ -24,11 +24,12 @@ google-sheets/    the optional Google Sheet sync script and its setup guide
 - **Journal**: bedtime, then morning, for one night. It saves as you type, opens on whatever is due
   now, and asks new users one question at a time ("Show everything on one page" switches that off).
   Tap the date for a calendar; naps for the day sit under Morning.
-- **Routines**: tick off tonight's / this morning's routine like a to-do list, or tap Edit to change
-  the items and tags.
-- **Sheet**: the whole journal as a color-coded spreadsheet, drawn from the on-device database.
-- **History**: averages for the last 30 days and a card per night.
-- **Settings**: reminders, export / import, and the optional Google Sheet sync.
+- **Routines**: tick off a night's bedtime / morning routine like a to-do list, or tap Edit to change
+  the items, their order and the tags.
+- **Sheet**: the whole journal as a color-coded spreadsheet, one page per year, drawn from the
+  on-device database.
+- **Settings**: reminders, export / import, the optional Google Sheet sync, and the version and
+  build number this device is running.
 
 ## Run it
 
@@ -95,6 +96,14 @@ cd app
 npx expo export --platform web
 npx eas-cli@latest deploy --prod
 ```
+
+## Releasing
+
+`npm run release` (in `app/`) does both of the above in one go: it bumps the build number in
+[`src/lib/buildInfo.json`](app/src/lib/buildInfo.json), deploys the web version and publishes the
+EAS Update for the phone. **Settings → About** shows the version and build number, so you can check
+that a device has picked up the latest release. `npm run release:web` publishes only the web
+version (new build number); `npm run release:phone` then sends that same build to the phone.
 
 ## Privacy & security notes
 

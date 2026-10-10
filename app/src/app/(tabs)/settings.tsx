@@ -6,6 +6,7 @@ import { GoogleSheetCard } from '@/components/GoogleSheetCard';
 import { TimePicker } from '@/components/TimeField';
 import { Button, Card, ErrorBox, Muted, Row, styles } from '@/components/ui';
 import { pickAndImportCsv } from '@/db/csv';
+import buildInfo from '@/lib/buildInfo.json';
 import { requestSync } from '@/db/sync';
 import type { Phase } from '@/lib/types';
 import { clearReminder, ensurePermission, getReminders, remindersSupported, setReminder, type Reminder } from '@/lib/notifications';
@@ -80,6 +81,11 @@ export default function SettingsScreen() {
       <ExportSheet visible={exporting} onClose={() => setExporting(false)} onError={setError} />
 
       <Card title="About">
+        {/* The build number goes up with every release (scripts/release.js): compare it between devices. */}
+        <Text style={{ color: colors.text }} selectable>
+          Sleep Journal {buildInfo.version} · build {buildInfo.build}
+        </Text>
+        <Muted>Published {buildInfo.date || 'from a development copy'}. If two devices show different build numbers, one of them hasn't updated yet.</Muted>
         <Button title="Show the welcome again" onPress={() => setWelcomeSeen(false)} small
           color={colors.chip} textColor={colors.text} />
       </Card>

@@ -1,7 +1,7 @@
 // All reads and writes go through here: plain SQL against the SQLite file on the phone.
 import * as SQLite from 'expo-sqlite';
-import { addDays, currentNight, weekdayOf } from '@/lib/time';
-import type { Entry, EntryPatch, Nap, Phase, RoutineItem, Stats, Tag } from '@/lib/types';
+import { weekdayOf } from '@/lib/time';
+import type { Entry, EntryPatch, Nap, Phase, RoutineItem, Tag } from '@/lib/types';
 import { migrate } from './migrations';
 import { transaction } from './transaction';
 import { claimWebDatabase, explainStorageError } from './webStorage';
@@ -262,47 +262,6 @@ const routine = {
   },
 };
 
-// ---------- stats ----------
-
-/** Averages over the last N nights. Clock times are averaged as "minutes after noon" (bedtime)
- *  and "minutes after midnight" (morning), so 11 PM and 1 AM average to midnight, not noon. */
-async function stats(days = 30): Promise<Stats> {
-  const db = await getDb();
-  const since = addDays(currentNight(), -days);
-  const row = await db.getFirstAsync<Omit<Stats, 'days' | 'tagCounts'>>(
-    `WITH n AS (
-       SELECT e.*,
-         (julianday(substr(tried_sleep_at, 1, 16)) - julianday(night_of || 'T12:00')) * 1440 AS tried_min,
-         (julianday(substr(woke_at, 1, 16)) - julianday(date(night_of, '+1 day'))) * 1440 AS woke_min,
-         (julianday(substr(day_started_at, 1, 16)) - julianday(date(night_of, '+1 day'))) * 1440 AS started_min,
-         (julianday(woke_at) - julianday(tried_sleep_at)) * 24 - coalesce(sleep_latency_min, 0) / 60.0 AS hours
-       FROM entries e
-       WHERE night_of > ?
-     )
-     SELECT
-       count(*)                          AS nights,
-       CAST(round(avg(tried_min)) AS INTEGER)         AS avgTriedSleepMinAfterNoon,
-       CAST(round(avg(sleep_latency_min)) AS INTEGER) AS avgLatencyMin,
-       CAST(round(avg(woke_min)) AS INTEGER)          AS avgWokeMinAfterMidnight,
-       CAST(round(avg(started_min)) AS INTEGER)       AS avgDayStartedMinAfterMidnight,
-       round(avg(hours), 2)              AS avgHoursAsleep,
-       round(avg(rested), 1)             AS avgRested
-     FROM n`,
-    since,
-  );
-  const tagCounts = await db.getAllAsync<{ name: string; count: number }>(
-    `SELECT t.name, count(*) AS count
-     FROM entry_tags et
-     JOIN tags t    ON t.id = et.tag_id
-     JOIN entries e ON e.id = et.entry_id
-     WHERE e.night_of > ?
-     GROUP BY t.name
-     ORDER BY count DESC, t.name`,
-    since,
-  );
-  return { days, ...row!, tagCounts };
-}
-
 export const store = {
   getEntry,
   listEntries,
@@ -311,5 +270,4 @@ export const store = {
   tags: table<Tag>('tags', 'name', { name: 'name' }),
   routine,
   naps: table<Nap>('naps', 'start_at DESC', { startAt: 'start_at', endAt: 'end_at', note: 'note' }),
-  stats,
 };

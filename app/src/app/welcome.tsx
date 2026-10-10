@@ -47,7 +47,7 @@ export default function WelcomeScreen() {
           <Step icon="☀" color={colors.morning} title="In the morning"
             body="Say how rested you feel, how long it took to fall asleep, and when you woke up." />
           <Step icon="≡" color={colors.muted} title="Over time"
-            body="History shows your averages. Export everything to a spreadsheet whenever you like." />
+            body="The Sheet tab shows every night as a spreadsheet. Export it, or sync it with Google Sheets, whenever you like." />
           <Step icon="⌂" color={colors.success} title="Private by design"
             body="Your journal is stored only on this device. No account, no server, no tracking." />
           <Muted>

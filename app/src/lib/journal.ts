@@ -1,4 +1,4 @@
-// Rules shared by the Journal screen, reminders and history: what "filled in" means,
+// Rules shared by the Journal screen and reminders: what "filled in" means,
 // and which check-in to show when the app opens.
 import { store } from '@/db/store';
 import { addDays, clockOf, currentNight, toLocalIso, type ClockTime } from './time';
@@ -10,9 +10,17 @@ export function isFilled(e: Pick<Entry, 'inBedAt' | 'triedSleepAt' | 'wokeAt'> |
   return phase === 'bedtime' ? !!(e.inBedAt || e.triedSleepAt) : !!e.wokeAt;
 }
 
-/** The check-in that's due right now: before 3 PM it's last night's morning, after that tonight's bedtime. */
+/** Until this hour of the early morning, you are probably still going to bed, not getting up. */
+const LATE_BEDTIME_UNTIL = 4;
+
+/**
+ * The check-in that's due right now: from 3 PM it's tonight's bedtime, and it stays bedtime
+ * (of the night that began yesterday) until 4 AM, for nights you go to bed after midnight.
+ * From 4 AM to 3 PM it's last night's morning.
+ */
 export function dueSlot(now = new Date()): { nightOf: string; phase: Phase } {
-  return { nightOf: currentNight(now), phase: now.getHours() < 15 ? 'morning' : 'bedtime' };
+  const h = now.getHours();
+  return { nightOf: currentNight(now), phase: h >= 15 || h < LATE_BEDTIME_UNTIL ? 'bedtime' : 'morning' };
 }
 
 /** The check-in right before a given one. */
@@ -30,7 +38,11 @@ export interface Start {
 
 /** Where the Journal should open: what's due now, unless you forgot the check-in just before it. */
 export async function pickStart(now = new Date()): Promise<Start> {
-  const due = dueSlot(now);
+  let due = dueSlot(now);
+  // After midnight with bedtime already filled in, you're up early (or awake again): show the morning.
+  if (due.phase === 'bedtime' && now.getHours() < LATE_BEDTIME_UNTIL && isFilled(await store.getEntry(due.nightOf), 'bedtime')) {
+    due = { nightOf: due.nightOf, phase: 'morning' };
+  }
   const prev = previousSlot(due);
   // A brand-new journal has nothing to have "forgotten" yet, and once what's due now is filled
   // in you've moved on, so only point back while the current check-in is still empty.

@@ -85,14 +85,6 @@ export function formatClock(iso: string | null | undefined): string {
   return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-/** e.g. minutes after noon (from /stats) → "11:42 PM" */
-export function formatMinutesFrom(base: 'noon' | 'midnight', minutes: number | null): string {
-  if (minutes === null) return '—';
-  const d = new Date(2000, 0, 1, base === 'noon' ? 12 : 0, 0);
-  d.setMinutes(d.getMinutes() + minutes);
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-}
-
 export function formatDuration(minutes: number | null | undefined): string {
   if (minutes === null || minutes === undefined) return '—';
   const h = Math.floor(minutes / 60);

@@ -42,15 +42,3 @@ export interface RoutineItem {
 }
 
 export interface Nap { id: number; startAt: string; endAt: string | null; note: string | null }
-
-export interface Stats {
-  days: number;
-  nights: number;
-  avgTriedSleepMinAfterNoon: number | null;
-  avgLatencyMin: number | null;
-  avgWokeMinAfterMidnight: number | null;
-  avgDayStartedMinAfterMidnight: number | null;
-  avgHoursAsleep: number | null;
-  avgRested: number | null;
-  tagCounts: { name: string; count: number }[];
-}

@@ -41,7 +41,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "release": "node scripts/release.js",
+    "release:web": "node scripts/release.js web",
+    "release:phone": "node scripts/release.js phone"
   },
   "private": true,
   "license": "MIT"

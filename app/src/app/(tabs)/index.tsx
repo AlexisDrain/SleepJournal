@@ -17,6 +17,7 @@ import { loadJournalMode, saveJournalMode, type JournalMode } from '@/lib/journa
 import { syncReminders } from '@/lib/notifications';
 import { colors, radius, space } from '@/lib/theme';
 import { clockOf, currentNight, formatClock, formatDuration } from '@/lib/time';
+import { usePhaseOrder } from '@/lib/phaseOrder';
 import type { Entry, EntryPatch, Phase, Tag } from '@/lib/types';
 import { useAutosave, type SaveStatus } from '@/lib/useAutosave';
 import { useDraft } from '@/lib/useDraft';
@@ -26,11 +27,10 @@ import { NARROW_PAGE, page, useWide, WIDE_PAGE } from '@/lib/useLayout';
 const DEFAULT_RESTED = 3;
 const MORNING_KEYS: (keyof EntryPatch)[] = ['sleepLatencyMin', 'wokeAt', 'dayStartedAt', 'rested', 'morningNote', 'dream'];
 const RETARGET_AFTER_MS = 10 * 60_000; // coming back after this long re-picks what's due
-const PHASES: Phase[] = ['bedtime', 'morning']; // always in this order, like the spreadsheet's columns
 const other = (p: Phase): Phase => (p === 'bedtime' ? 'morning' : 'bedtime');
 
 export default function JournalScreen() {
-  const { night } = useLocalSearchParams<{ night?: string }>(); // set when opened from History or the Sheet
+  const { night } = useLocalSearchParams<{ night?: string }>(); // "/?night=2026-10-05" opens that night
   const [nightOf, setNightOf] = useState(night ?? currentNight());
   const [start, setStart] = useState<Start | null>(null);
   const [expanded, setExpanded] = useState<Record<Phase, boolean>>({ bedtime: true, morning: true });
@@ -42,6 +42,7 @@ export default function JournalScreen() {
   const [stepsAsked, setStepsAsked] = useState<Phase | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const wide = useWide();
+  const [phases, swapPhases] = usePhaseOrder(); // Bedtime first, or Morning first if you swapped them
 
   const { entry, setEntry, tags, loading, error, reload, refresh } = useEntry(nightOf);
   const draft = useDraft(entry, nightOf);
@@ -97,7 +98,7 @@ export default function JournalScreen() {
     setStepsDone(isFilled(await store.getEntry(s.nightOf), s.open));
   }, [openAt]);
 
-  /** A night chosen by hand (arrows, calendar, History): show all of it. */
+  /** A night chosen by hand (arrows, calendar): show all of it. */
   const browseTo = useCallback((n: string) => {
     setStart(null);
     return openAt({ nightOf: n, both: true });
@@ -180,7 +181,7 @@ export default function JournalScreen() {
               <>
                 {/* Phones: stacked, the check-in that isn't due folded. Wide screens: side by side, both open. */}
                 <View style={wide ? { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' } : undefined}>
-                  {PHASES.map((phase) => (
+                  {phases.map((phase) => (
                     <View key={phase} style={wide ? { flex: 1 } : undefined}>
                       <Section phase={phase} expanded={wide || expanded[phase]} collapsible={!wide} filled={filledNow(phase)}
                         onToggle={() => setExpanded((x) => ({ ...x, [phase]: !x[phase] }))}
@@ -215,6 +216,14 @@ export default function JournalScreen() {
                 {stepPhase ? 'Show everything on one page' : 'Ask me one question at a time'}
               </Text>
             </Pressable>
+            {!stepPhase && (
+              <Pressable onPress={swapPhases} hitSlop={8} style={{ alignSelf: 'center', marginTop: space.md }}
+                accessibilityRole="button" accessibilityLabel="Swap the order of Bedtime and Morning">
+                <Text style={{ color: colors.muted, textDecorationLine: 'underline' }}>
+                  {phases[0] === 'bedtime' ? 'Show Morning first' : 'Show Bedtime first'}
+                </Text>
+              </Pressable>
+            )}
             {actionError && <ErrorBox message={actionError} />}
           </>
         )}

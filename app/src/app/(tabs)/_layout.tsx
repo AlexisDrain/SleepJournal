@@ -28,7 +28,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Journal', tabBarIcon: icon('☾') }} />
       <Tabs.Screen name="routines" options={{ title: 'Routines', tabBarIcon: icon('✓') }} />
       <Tabs.Screen name="sheet" options={{ title: 'Sheet', tabBarIcon: icon('▦') }} />
-      <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: icon('≡') }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: icon('⚙') }} />
     </Tabs>
   );

@@ -13,11 +13,11 @@ import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
 import { confirmAction } from '@/lib/confirm';
 import { dueSlot } from '@/lib/journal';
+import { usePhaseOrder } from '@/lib/phaseOrder';
 import { colors, space } from '@/lib/theme';
 import { NARROW_PAGE, page, useWide, WIDE_PAGE } from '@/lib/useLayout';
 import type { Phase, RoutineItem, RoutineValue, Tag } from '@/lib/types';
 
-const PHASES: Phase[] = ['bedtime', 'morning'];
 const PHASE_NAME: Record<Phase, string> = { bedtime: 'Bedtime', morning: 'Morning' };
 const PHASE_COLOR: Record<Phase, string> = { bedtime: colors.night, morning: colors.morning };
 const PHASE_ICON: Record<Phase, string> = { bedtime: '☾', morning: '☀' }; // the same as the Journal's sections
@@ -36,6 +36,7 @@ export default function RoutinesScreen() {
   const [values, setValues] = useState<Record<string, RoutineValue>>({});
   const [calendarOpen, setCalendarOpen] = useState(false);
   const wide = useWide();
+  const [phases, swapPhases] = usePhaseOrder(); // Bedtime first, or Morning first if you swapped them
 
   const load = useCallback(async (night: string = shown.current) => {
     setError(null);
@@ -127,11 +128,13 @@ export default function RoutinesScreen() {
                 : 'Tick things off as you do them. They save to this night in your Journal.'}
             </Muted>
           </View>
+          {/* Only the order on screen changes (here and in the Journal), never the data. */}
+          <Chip label={wide ? '⇄ Swap' : '⇅ Swap'} onPress={swapPhases} />
           <Chip label={editMode ? 'Done' : 'Edit'} selected={editMode} onPress={() => setEditMode((v) => !v)} />
         </View>
 
         <View style={wide ? { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' } : undefined}>
-          {PHASES.map((phase) => {
+          {phases.map((phase) => {
             const items = routine.filter((r) => r.phase === phase && !r.archived);
             return (
               <View key={phase} style={wide ? { flex: 1 } : undefined}>

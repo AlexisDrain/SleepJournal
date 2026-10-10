@@ -95,7 +95,8 @@ export function LatencyPicker({ value, onChange }: { value: number | null; onCha
       {long && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.lg }}>
           <Chip label="  −  " onPress={() => step(-30)} />
-          <Text style={{ color: colors.morning, fontSize: 17, fontWeight: '600' }}>{formatDuration(value)}</Text>
+          {/* A fixed width, so "3h 30m" → "4h" doesn't move the + button from under your finger. */}
+          <Text style={{ color: colors.morning, fontSize: 17, fontWeight: '600', width: 84, textAlign: 'center' }}>{formatDuration(value)}</Text>
           <Chip label="  +  " onPress={() => step(30)} />
         </View>
       )}

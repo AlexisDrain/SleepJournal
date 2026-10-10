@@ -1,11 +1,11 @@
 // Sheet: the journal as a spreadsheet, inside the app. It's drawn from the same table the export
 // builds (so it matches what you'd see in Google Sheets or Excel), straight from the database on
-// this device: no internet or Google needed. Like the Google Sheet, it has one page per year with
+// this device: no internet or Google needed. It is for reading: rows can't be tapped. Like the Google Sheet, it has one page per year with
 // the oldest night on top; it opens scrolled to the bottom, where the newest night is.
 //
 // The date column stays put while the rest scrolls sideways, and edge arrows show (and jump to)
 // the columns that are off screen, so it's clear on a phone that there is more to the right.
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, FlatList, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { ExportSheet } from '@/components/ExportSheet';
@@ -14,7 +14,6 @@ import { buildTable } from '@/db/csv';
 import type { ColumnGroup, SheetColumn, SheetValue } from '@/db/xlsx';
 import { loadExcluded, loadRoutineDetail } from '@/lib/exportPrefs';
 import { colors, space } from '@/lib/theme';
-import { useWide } from '@/lib/useLayout';
 
 const ROW_HEIGHT = 34;
 const HEADER_HEIGHT = 44;
@@ -28,12 +27,6 @@ const widthOf = (c: SheetColumn) => Math.max(72, Math.round(c.width * 8.5));
 
 const yearOf = (row: SheetValue[]) => String(row[0] ?? '').slice(-4);
 
-/** "9-26-2026" → "2026-09-26" */
-function toNightOf(v: SheetValue): string | null {
-  const m = String(v ?? '').match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-  return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : null;
-}
-
 export default function SheetScreen() {
   const [columns, setColumns] = useState<SheetColumn[]>([]);
   const [allRows, setAllRows] = useState<SheetValue[][]>([]);
@@ -41,9 +34,6 @@ export default function SheetScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
-  // On a phone, rows are for reading: a stray tap while swiping shouldn't jump to another night.
-  // With a mouse on a wide screen, clicking a row opens that night in the Journal.
-  const rowsOpenNights = useWide();
 
   const load = useCallback(async () => {
     setError(null);
@@ -164,7 +154,7 @@ export default function SheetScreen() {
           <Muted>
             {loading
               ? 'Loading…'
-              : `${rows.length} night${rows.length === 1 ? '' : 's'}${years.length > 1 ? ` in ${year}` : ''}${rowsOpenNights ? ' · click a row to open it' : ''}${scrollable ? ' · swipe sideways for more columns →' : ''}`}
+              : `${rows.length} night${rows.length === 1 ? '' : 's'}${years.length > 1 ? ` in ${year}` : ''}${scrollable ? ' · swipe sideways for more columns →' : ''}`}
           </Muted>
         </View>
         <Button title="Fields & export…" small onPress={() => setChoosing(true)} color={colors.chip} textColor={colors.text} />
@@ -223,11 +213,8 @@ export default function SheetScreen() {
                 getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
                 initialNumToRender={30}
                 windowSize={7}
-                renderItem={({ item }) => {
-                  const night = toNightOf(item[0]);
-                  return (
-                    <Pressable disabled={!night || !rowsOpenNights} onPress={() => night && router.navigate({ pathname: '/', params: { night } })}
-                      style={{ flexDirection: 'row', height: ROW_HEIGHT }}>
+                renderItem={({ item }) => (
+                    <View style={{ flexDirection: 'row', height: ROW_HEIGHT }}>
                       {columns.map((c, i) => (
                         <View key={c.header} style={{
                           width: widthOf(c), backgroundColor: TINT[c.group][1], justifyContent: 'center', paddingHorizontal: 8,
@@ -237,9 +224,8 @@ export default function SheetScreen() {
                         </View>
                       ))}
                       {pinned(String(item[0] ?? ''), TINT[columns[0].group][1], ROW_HEIGHT, false)}
-                    </Pressable>
-                  );
-                }}
+                    </View>
+                )}
               />
             </View>
           </Animated.ScrollView>
