@@ -114,6 +114,9 @@ enter the same two things there.
 - **Open sheet**: once connected, **Settings → Google Sheet → Open sheet** opens the spreadsheet
   (in the Google Sheets app or your browser). You still need to be signed in to your Google
   account to see it; the button only saves you finding the file.
+- **12- or 24-hour times**: the sheet shows times the way the app is set (**Settings → Clock**).
+  Changing the setting rewrites every row once. Typing either style into the sheet works. If you
+  use two devices, give them the same setting, or rows will follow whichever device wrote them last.
 - **Editing in Sheets is fine.** Changing a cell marks that row as updated (the *Updated* column),
   and the app picks it up on its next sync. Typing a new row with a *Night of* date also works.
 - **Your own columns are kept.** Add columns to the right; they move with their row.
@@ -127,6 +130,8 @@ enter the same two things there.
   to see which dot is which). The per-item columns, and any field you switch off in the app's
   Export panel, are hidden rather than removed: right-click the column letters → *Unhide* to see them.
   Hand-edit the per-item columns, not the summary: the summary is recalculated by the app.
+- **Three routine lists**: Bedtime, Morning and Anytime. The Anytime columns (*Anytime routine*,
+  *Anytime: …*) appear at the end of the sheet once that list has items. (Needs script version 5.)
 - **Your routine list syncs too.** The script keeps it in a **Routine items** tab (name, check-in,
   order, hidden), so the phone and the web app show the same checklist in the same order. Change
   items in the app (**Routines → Edit**); leave the *Id* column alone.

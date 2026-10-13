@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { store } from '@/db/store';
 import { requestSync } from '@/db/sync';
-import type { Phase, RoutineItem } from '@/lib/types';
+import type { RoutineItem, RoutinePhase } from '@/lib/types';
 import { colors, space } from '@/lib/theme';
 import { Panel } from './Panel';
 import { Button, Chip, Input, Muted, styles } from './ui';
@@ -13,7 +13,7 @@ export const KIND_LABEL: Record<RoutineItem['kind'], string> = {
   number: '# number',
   text: 'Aa note',
 };
-const PHASE_COLOR: Record<Phase, string> = { bedtime: colors.night, morning: colors.morning };
+const PHASE_COLOR: Record<RoutinePhase, string> = { bedtime: colors.night, morning: colors.morning, anytime: colors.success };
 
 /** Bottom sheet to rename a routine item, change what it records, move it, or hide it. */
 export function RoutineItemEditor({ item, onClose, onSaved }: {
@@ -23,7 +23,7 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
 }) {
   const [label, setLabel] = useState('');
   const [kind, setKind] = useState<RoutineItem['kind']>('check');
-  const [phase, setPhase] = useState<Phase>('bedtime');
+  const [phase, setPhase] = useState<RoutinePhase>('bedtime');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +65,7 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
           <View style={styles.chips}>
             <Chip label="☾ bedtime" selected={phase === 'bedtime'} onPress={() => setPhase('bedtime')} color={colors.night} />
             <Chip label="☀ morning" selected={phase === 'morning'} onPress={() => setPhase('morning')} color={colors.morning} />
+            <Chip label="✓ anytime" selected={phase === 'anytime'} onPress={() => setPhase('anytime')} color={colors.success} />
           </View>
           {item && kind !== item.kind && (
             <Muted>Past nights keep what they recorded before the change.</Muted>

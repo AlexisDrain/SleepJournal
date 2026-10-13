@@ -13,11 +13,13 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 type Mark = 'full' | 'part';
 
-export function CalendarSheet({ visible, selected, onPick, onClose }: {
+export function CalendarSheet({ visible, selected, onPick, onClose, allowFuture = false }: {
   visible: boolean;
   selected: string; // night-of date, YYYY-MM-DD
   onPick: (nightOf: string) => void;
   onClose: () => void;
+  /** Let coming days be picked too (Routines, to tick or plan ahead). The Journal only looks back. */
+  allowFuture?: boolean;
 }) {
   const [year, setYear] = useState(() => Number(selected.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(selected.slice(5, 7))); // 1-12
@@ -75,7 +77,7 @@ export function CalendarSheet({ visible, selected, onPick, onClose }: {
           {cells.map((day, i) => {
             if (day === null) return <View key={i} style={{ width: `${100 / 7}%`, height: 46 }} />;
             const date = `${year}-${pad(month)}-${pad(day)}`;
-            const future = date > today;
+            const future = !allowFuture && date > today;
             const isSelected = date === selected;
             const mark = marks[date];
             return (

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import type { Phase, RoutineItem, RoutineValue, Tag } from '@/lib/types';
+import { Platform, Pressable, Text, View } from 'react-native';
+import type { RoutineItem, RoutinePhase, RoutineValue, Tag } from '@/lib/types';
 import { colors, space } from '@/lib/theme';
 import { addDays, formatDuration, nightLabel, nowOnNight, shortDate, toLocalIso } from '@/lib/time';
 import { SwipeRow } from './SwipeRow';
@@ -8,7 +8,7 @@ import { pickedOnNight, TimePicker } from './TimeField';
 import { Chip, Input, Muted, styles } from './ui';
 
 /**
- * "‹  Friday night → Saturday  ›". Arrows step a night at a time, tapping the date opens the
+ * "‹  Friday night → Saturday morning  ›". Arrows step a night at a time, tapping the date opens the
  * calendar, and "Today" (shown when you're looking at another night) jumps back to what's due now.
  */
 export function NightSwitcher({ nightOf, onChange, onOpenCalendar, onToday, arrows = true }: {
@@ -28,8 +28,12 @@ export function NightSwitcher({ nightOf, onChange, onOpenCalendar, onToday, arro
     <View style={{ marginBottom: space.lg, gap: space.sm }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: arrows ? 'space-between' : 'center' }}>
         {arrows && arrow(-1, '‹', 'Previous night')}
-        <Pressable onPress={onOpenCalendar} style={{ alignItems: 'center' }} accessibilityRole="button" accessibilityLabel="Choose a night from the calendar">
-          <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>{nightLabel(nightOf)}</Text>
+        <Pressable onPress={onOpenCalendar} style={{ alignItems: 'center', flex: 1 }} accessibilityRole="button" accessibilityLabel="Choose a night from the calendar">
+          {/* Long ("Wednesday night → Thursday morning"): on a phone it shrinks to stay on one line; in a browser it may wrap. */}
+          <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700', textAlign: 'center' }}
+            adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={Platform.OS === 'web' ? undefined : 1}>
+            {nightLabel(nightOf)}
+          </Text>
           <Muted>{shortDate(nightOf)}  ▾</Muted>
         </Pressable>
         {arrows && arrow(1, '›', 'Next night')}
@@ -46,7 +50,8 @@ export function NightSwitcher({ nightOf, onChange, onOpenCalendar, onToday, arro
 export const RESTED_LABELS = ['Exhausted', 'Tired', 'Okay', 'Rested', 'Great'];
 
 /** One 1-5 scale for "how did you sleep / how rested are you". */
-export function RestedScale({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+/** Tapping the chosen number again clears it (value null = nothing chosen). */
+export function RestedScale({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
   return (
     <View style={{ gap: space.sm }}>
       <View style={{ flexDirection: 'row', gap: space.xs }}>
@@ -54,7 +59,8 @@ export function RestedScale({ value, onChange }: { value: number; onChange: (v: 
           const n = i + 1;
           const selected = n === value;
           return (
-            <Pressable key={n} onPress={() => onChange(n)} accessibilityLabel={label}
+            <Pressable key={n} onPress={() => onChange(selected ? null : n)} accessibilityLabel={label}
+              accessibilityState={{ selected }}
               style={{
                 flex: 1, alignItems: 'center', paddingVertical: space.md, borderRadius: 10,
                 backgroundColor: selected ? colors.morning : colors.chip,
@@ -67,7 +73,7 @@ export function RestedScale({ value, onChange }: { value: number; onChange: (v: 
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         <Muted>Exhausted</Muted>
-        <Text style={{ color: colors.morning, fontWeight: '600' }}>{RESTED_LABELS[value - 1]}</Text>
+        <Text style={{ color: colors.morning, fontWeight: '600' }}>{value === null ? '' : RESTED_LABELS[value - 1]}</Text>
         <Muted>Well rested</Muted>
       </View>
     </View>
@@ -140,7 +146,8 @@ export function Routine({ items, values, onChange, nightOf, phase, accent, onEdi
   values: Record<string, RoutineValue>;
   onChange: (id: number, v: RoutineValue) => void;
   nightOf: string;
-  phase: Phase;
+  /** Decides which calendar day a "time" item's clock time lands on (see timeOnNight). */
+  phase: RoutinePhase;
   accent: string;
   onEdit: (item: RoutineItem) => void;
   onHide: (item: RoutineItem) => void;

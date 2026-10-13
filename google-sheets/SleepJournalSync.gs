@@ -30,7 +30,7 @@
  * Bump this whenever the script changes in a way the app should know about. The app compares it
  * with the version it was built for and tells the user when their sheet's script is out of date.
  */
-const SCRIPT_VERSION = 4;
+const SCRIPT_VERSION = 5;
 
 const NIGHT = 'Night of';
 const UPDATED = 'Updated';
@@ -39,7 +39,8 @@ const ROUTINE_TAB = 'Routine items';
 const ROUTINE_COLS = ['Id', 'Check-in', 'Item', 'Records', 'Order', 'Hidden', UPDATED];
 const ROUTINE_KINDS = ['check', 'time', 'number', 'text'];
 // An item's column in the year tabs is this + its name, e.g. "Bedtime: Brush teeth" (same as the app).
-const ROUTINE_PREFIX = { bedtime: 'Bedtime: ', morning: 'Morning: ' };
+const ROUTINE_PREFIX = { bedtime: 'Bedtime: ', morning: 'Morning: ', anytime: 'Anytime: ' };
+const ROUTINE_ORDER = { bedtime: 0, morning: 1, anytime: 2 };
 // [header color, cell tint] per column group, same as the app's .xlsx export
 const COLORS = {
   other: ['#b7e4c7', '#eaf7ef'],
@@ -235,7 +236,7 @@ function pull_(ss, since) {
 // ---------- the routine list ----------
 
 /**
- * items: [{ id, phase: 'bedtime' | 'morning', label, kind, order, hidden, updated }]
+ * items: [{ id, phase: 'bedtime' | 'morning' | 'anytime', label, kind, order, hidden, updated }]
  *   id:      made by the app; it stays the same when the item is renamed, which is how a rename is
  *            told apart from "one item removed, another added"
  *   updated: when the item last changed; the newest version of an item wins
@@ -317,7 +318,7 @@ function writeRoutine_(ss, items) {
     sh.getRange(2, 5, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat('0'); // Order
   }
   const sorted = items.slice().sort(function (a, b) {
-    return a.phase === b.phase ? a.order - b.order : a.phase === 'bedtime' ? -1 : 1;
+    return a.phase === b.phase ? a.order - b.order : ROUTINE_ORDER[a.phase] - ROUTINE_ORDER[b.phase];
   });
   const old = sh.getLastRow() - 1;
   if (old > 0) sh.getRange(2, 1, old, n).clearContent();

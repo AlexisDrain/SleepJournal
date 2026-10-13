@@ -1,13 +1,15 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, Switch, Text, View } from 'react-native';
+import { Linking, ScrollView, Switch, Text, View } from 'react-native';
 import { ExportSheet } from '@/components/ExportSheet';
 import { GoogleSheetCard } from '@/components/GoogleSheetCard';
 import { TimePicker } from '@/components/TimeField';
 import { Button, Card, ErrorBox, Muted, Row, styles } from '@/components/ui';
 import { pickAndImportCsv } from '@/db/csv';
 import buildInfo from '@/lib/buildInfo.json';
-import { requestSync } from '@/db/sync';
+import { requestSync, resendAllNights } from '@/db/sync';
+import { setHour24, useHour24 } from '@/lib/clockFormat';
+import { REPO_URL } from '@/lib/links';
 import type { Phase } from '@/lib/types';
 import { clearReminder, ensurePermission, getReminders, remindersSupported, setReminder, type Reminder } from '@/lib/notifications';
 import { colors, space } from '@/lib/theme';
@@ -26,6 +28,7 @@ export default function SettingsScreen() {
   const [reminders, setReminders] = useState<Partial<Record<Phase, Reminder>>>({});
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const hour24 = useHour24();
 
   const load = useCallback(async () => {
     setError(null);
@@ -64,6 +67,21 @@ export default function SettingsScreen() {
         <Muted>Local notifications from your phone. They work offline.</Muted>
       </Card>}
 
+      <Card title="Clock">
+        <Row label="24-hour time">
+          <Switch value={hour24} trackColor={{ true: colors.night }}
+            onValueChange={(v) => {
+              setHour24(v)
+                .then(resendAllNights) // the Google Sheet, if connected, is rewritten in the new style
+                .catch((e) => setError((e as Error).message));
+            }} />
+        </Row>
+        <Muted>
+          {hour24 ? '23:30 instead of 11:30 PM.' : '11:30 PM instead of 23:30.'} Used everywhere in the app, in exports and in
+          your Google Sheet. It started as your region's style.
+        </Muted>
+      </Card>
+
       <GoogleSheetCard />
 
       <Card title="Your data">
@@ -88,6 +106,14 @@ export default function SettingsScreen() {
         <Muted>Published {buildInfo.date || 'from a development copy'}. If two devices show different build numbers, one of them hasn't updated yet.</Muted>
         <Button title="Show the welcome again" onPress={() => setWelcomeSeen(false)} small
           color={colors.chip} textColor={colors.text} />
+        <Muted>
+          For support and to report issues, go to{' '}
+          <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="link"
+            onPress={() => Linking.openURL(REPO_URL).catch(() => {})}>
+            {REPO_URL.replace('https://', '')}
+          </Text>
+          .
+        </Muted>
       </Card>
     </ScrollView>
   );

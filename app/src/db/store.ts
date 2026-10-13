@@ -1,7 +1,7 @@
 // All reads and writes go through here: plain SQL against the SQLite file on the phone.
 import * as SQLite from 'expo-sqlite';
 import { weekdayOf } from '@/lib/time';
-import type { Entry, EntryPatch, Nap, Phase, RoutineItem, Tag } from '@/lib/types';
+import type { Entry, EntryPatch, Nap, RoutineItem, RoutinePhase, Tag } from '@/lib/types';
 import { migrate } from './migrations';
 import { transaction } from './transaction';
 import { claimWebDatabase, explainStorageError } from './webStorage';
@@ -40,6 +40,7 @@ const SELECT_ENTRY = `
           - coalesce(e.sleep_latency_min, 0) / 60.0, 2) AS hoursAsleep,
     e.wake_count        AS wakeCount,
     e.rested,
+    e.rested_skipped    AS restedSkipped,
     e.bedtime_note      AS bedtimeNote,
     e.morning_note      AS morningNote,
     e.dream,
@@ -51,10 +52,11 @@ const SELECT_ENTRY = `
     e.updated_at        AS updatedAt
   FROM entries e`;
 
-type EntryRow = Omit<Entry, 'weekday' | 'tags' | 'routine'> & { tags: string; routine: string };
+type EntryRow = Omit<Entry, 'weekday' | 'tags' | 'routine' | 'restedSkipped'> & { tags: string; routine: string; restedSkipped: number };
 
 const toEntry = (r: EntryRow): Entry => ({
   ...r,
+  restedSkipped: r.restedSkipped === 1,
   weekday: weekdayOf(r.nightOf),
   tags: JSON.parse(r.tags),
   routine: JSON.parse(r.routine),
@@ -69,6 +71,7 @@ const COLUMNS = {
   dayStartedAt: 'day_started_at',
   wakeCount: 'wake_count',
   rested: 'rested',
+  restedSkipped: 'rested_skipped',
   bedtimeNote: 'bedtime_note',
   morningNote: 'morning_note',
   dream: 'dream',
@@ -104,7 +107,7 @@ export async function writeEntry(tx: SQLite.SQLiteDatabase, nightOf: string, pat
     const v = patch[key as keyof typeof COLUMNS];
     if (v !== undefined) {
       cols.push(col);
-      values.push(v);
+      values.push(typeof v === 'boolean' ? Number(v) : v); // booleans are stored as 0/1
     }
   }
   if (updatedAt) {
@@ -200,6 +203,31 @@ function table<T extends { id: number }>(name: string, orderBy: string, columns:
   };
 }
 
+// ---------- tags ----------
+
+const tagTable = table<Tag>('tags', 'name', { name: 'name', archived: 'archived' }, ['archived']);
+
+const tags = {
+  list: tagTable.list,
+  update: tagTable.update,
+
+  /** Adds a tag. If a hidden tag already has this name, that one is shown again instead. */
+  create: async ({ name }: { name: string }) => {
+    const db = await getDb();
+    await db.runAsync(
+      `INSERT INTO tags (name) VALUES (?) ON CONFLICT (name) DO UPDATE SET archived = 0`, name.trim().toLowerCase());
+  },
+
+  /** Deletes a tag and takes it off every night. Those nights count as changed, so the sync carries it over. */
+  remove: async (id: number) => {
+    const db = await getDb();
+    await transaction(db, async (tx) => {
+      await tx.runAsync(`UPDATE entries SET updated_at = ${NOW} WHERE id IN (SELECT entry_id FROM entry_tags WHERE tag_id = ?)`, id);
+      await tx.runAsync(`DELETE FROM tags WHERE id = ?`, id);
+    });
+  },
+};
+
 // ---------- routine items ----------
 
 const routineTable = table<RoutineItem>(
@@ -211,7 +239,7 @@ const routineTable = table<RoutineItem>(
 
 const stamp = () => new Date().toISOString().slice(0, 19) + 'Z';
 const newUid = () => Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-const endOf = async (phase: Phase) =>
+const endOf = async (phase: RoutinePhase) =>
   (await (await getDb()).getFirstAsync<{ n: number }>(
     `SELECT coalesce(max(sort_order), 0) + 1 AS n FROM routine_items WHERE phase = ?`, phase))!.n;
 
@@ -228,8 +256,8 @@ const routine = {
 
   update: async (id: number, body: RoutineEdit) => {
     const db = await getDb();
-    const now = await db.getFirstAsync<{ phase: Phase }>(`SELECT phase FROM routine_items WHERE id = ?`, id);
-    // Moved to the other check-in: it joins the end of that list.
+    const now = await db.getFirstAsync<{ phase: RoutinePhase }>(`SELECT phase FROM routine_items WHERE id = ?`, id);
+    // Moved to another list: it joins the end of that list.
     const moved = body.phase !== undefined && now !== null && body.phase !== now.phase;
     await routineTable.update(id, {
       label: body.label, phase: body.phase, kind: body.kind, archived: body.archived,
@@ -267,7 +295,7 @@ export const store = {
   listEntries,
   saveEntry,
   deleteEntry,
-  tags: table<Tag>('tags', 'name', { name: 'name' }),
+  tags,
   routine,
   naps: table<Nap>('naps', 'start_at DESC', { startAt: 'start_at', endAt: 'end_at', note: 'note' }),
 };

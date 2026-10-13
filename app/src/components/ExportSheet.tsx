@@ -1,4 +1,6 @@
 // "Export…" panel: pick which columns to include, then export as .xlsx or CSV.
+// The Sheet tab uses the same panel (mode "view") for its own, separately saved column choices;
+// there it has no export buttons and doesn't touch exports or the Google Sheet.
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { exportableColumns, exportCsv, exportXlsx, REQUIRED_COLUMN } from '@/db/csv';
@@ -17,11 +19,14 @@ const GROUPS: { group: ColumnGroup; title: string; color: string }[] = [
 
 type Format = 'xlsx' | 'csv';
 
-export function ExportSheet({ visible, onClose, onError }: {
+export function ExportSheet({ visible, onClose, onError, mode = 'export' }: {
   visible: boolean;
   onClose: () => void;
   onError: (message: string) => void;
+  /** 'export': Settings → Export. 'view': the Sheet tab's own columns. */
+  mode?: 'export' | 'view';
 }) {
+  const scope = mode === 'view' ? 'sheet' : 'export';
   const [columns, setColumns] = useState<(SheetColumn & { detail: boolean })[] | null>(null);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [fillGaps, setFillGaps] = useState(false);
@@ -34,7 +39,7 @@ export function ExportSheet({ visible, onClose, onError }: {
   useEffect(() => {
     if (!visible) return;
     setColumns(null);
-    Promise.all([exportableColumns(), loadExcluded(), loadFillGaps(), loadRoutineDetail()])
+    Promise.all([exportableColumns(), loadExcluded(scope), loadFillGaps(scope), loadRoutineDetail(scope)])
       .then(([cols, ex, gaps, detail]) => {
         setColumns(cols);
         setExcluded(ex);
@@ -42,7 +47,7 @@ export function ExportSheet({ visible, onClose, onError }: {
         setRoutineDetail(detail);
       })
       .catch((e) => onError((e as Error).message));
-  }, [visible, onError]);
+  }, [visible, onError, scope]);
 
   const setMany = (headers: string[], include: boolean) =>
     setExcluded((prev) => {
@@ -67,10 +72,10 @@ export function ExportSheet({ visible, onClose, onError }: {
     }
   };
 
-  /** Remember the choices; the Google Sheet (if connected) shows and hides the same columns. */
+  /** Remember the choices. The export ones also decide which columns a connected Google Sheet shows. */
   const saveChoices = async () => {
-    await Promise.all([saveExcluded(excluded), saveFillGaps(fillGaps), saveRoutineDetail(routineDetail)]);
-    requestSync(0);
+    await Promise.all([saveExcluded(excluded, scope), saveFillGaps(fillGaps, scope), saveRoutineDetail(routineDetail, scope)]);
+    if (mode === 'export') requestSync(0);
   };
 
   const start = async (format: Format | null) => {
@@ -84,11 +89,18 @@ export function ExportSheet({ visible, onClose, onError }: {
 
   return (
     <Panel visible={visible} onClose={onClose} onDismiss={runPending}>
-        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>Export</Text>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>{mode === 'view' ? 'Column settings' : 'Export'}</Text>
         {!columns ? (
           <ActivityIndicator color={colors.night} />
         ) : (
-          <ScrollView style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ gap: space.md }}>
+          // The list scrolls inside its own darker, bordered box, so it's clear where it starts and ends
+          // (and that there is more below). It never shrinks under about four rows.
+          <ScrollView persistentScrollbar
+            style={{
+              flexGrow: 0, flexShrink: 1, minHeight: 170, backgroundColor: colors.bg,
+              borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder,
+            }}
+            contentContainerStyle={{ gap: space.md, padding: space.md, paddingRight: space.lg }}>
             {GROUPS.map(({ group, title, color }) => {
               const cols = columns.filter((c) => c.group === group && (routineDetail || !c.detail));
               if (!cols.length) return null;
@@ -120,7 +132,7 @@ export function ExportSheet({ visible, onClose, onError }: {
                         </View>
                         <Text style={{ color: colors.text, fontSize: 15, flexShrink: 1 }}>
                           {c.header.replace(/^(Bedtime|Morning): /, '')}
-                          {locked ? <Text style={{ color: colors.muted }}>  (always included)</Text> : null}
+                          {locked ? <Text style={{ color: colors.muted }}>  ({mode === 'view' ? 'always shown' : 'always included'})</Text> : null}
                         </Text>
                       </Pressable>
                     );
@@ -144,21 +156,34 @@ export function ExportSheet({ visible, onClose, onError }: {
           </View>
           <Switch value={fillGaps} onValueChange={setFillGaps} trackColor={{ true: colors.night }} />
         </View>
-        <Muted>
-          {partial ? "Some fields are off, so this CSV won't be a full backup. " : ''}
-          CSV always keeps one column per routine item, so a backup can be restored. A connected Google Sheet
-          shows the same fields as here; the rest are hidden there, not deleted.
-        </Muted>
-        <Button title="Spreadsheet (.xlsx)" onPress={() => start('xlsx')} disabled={!columns} />
-        <View style={{ flexDirection: 'row', gap: space.md }}>
-          <View style={{ flex: 1 }}>
-            <Button title="CSV" small onPress={() => start('csv')} disabled={!columns}
-              color={colors.chip} textColor={colors.text} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button title="Done" small onPress={() => start(null)} color={colors.chip} textColor={colors.text} />
-          </View>
-        </View>
+        {mode === 'view' ? (
+          <>
+            <Muted>
+              These choices are only for the Sheet tab. Exports and your Google Sheet have their own, under
+              Settings → Export.
+            </Muted>
+            <Button title="Done" onPress={() => start(null)} disabled={!columns} />
+          </>
+        ) : (
+          <>
+            <Muted>
+              {partial ? "Some fields are off, so this CSV won't be a full backup. " : ''}
+              CSV always keeps one column per routine item, so a backup can be restored. A connected Google Sheet
+              shows the same fields as here; the rest are hidden there, not deleted. The Sheet tab in the app has
+              its own choices.
+            </Muted>
+            <Button title="Spreadsheet (.xlsx)" onPress={() => start('xlsx')} disabled={!columns} />
+            <View style={{ flexDirection: 'row', gap: space.md }}>
+              <View style={{ flex: 1 }}>
+                <Button title="CSV" small onPress={() => start('csv')} disabled={!columns}
+                  color={colors.chip} textColor={colors.text} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button title="Done" small onPress={() => start(null)} color={colors.chip} textColor={colors.text} />
+              </View>
+            </View>
+          </>
+        )}
     </Panel>
   );
 }

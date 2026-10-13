@@ -7,13 +7,17 @@
 // import using the night-of rule: bedtime PM → that evening, AM → after midnight; morning → next day.
 import * as DocumentPicker from 'expo-document-picker';
 import { addDays, toDateString, toLocalIso, weekdayOf } from '@/lib/time';
-import type { Entry, EntryPatch, Phase, RoutineItem, RoutineValue } from '@/lib/types';
+import type { Entry, EntryPatch, Phase, RoutineItem, RoutinePhase, RoutineValue } from '@/lib/types';
 import { readPickedText, shareFile } from './files';
 import { getDb, store, writeEntry } from './store';
 import { buildXlsx, type ColumnGroup, type SheetColumn, type SheetValue } from './xlsx';
 import { transaction } from './transaction';
+import { clockFormatReady, formatTime } from '@/lib/clockFormat';
 
-const PHASE_PREFIX: Record<Phase, string> = { bedtime: 'Bedtime: ', morning: 'Morning: ' };
+const PHASE_PREFIX: Record<RoutinePhase, string> = { bedtime: 'Bedtime: ', morning: 'Morning: ', anytime: 'Anytime: ' };
+// "Anytime" items have no check-in of their own: they are colored like the general columns. They
+// cover the calendar day of the row's date (midnight to midnight), so a time on one is on that date.
+const groupOf = (phase: RoutinePhase): ColumnGroup => (phase === 'anytime' ? 'other' : phase);
 
 interface Column extends SheetColumn {
   value: (e: Entry) => SheetValue;
@@ -27,8 +31,8 @@ interface Column extends SheetColumn {
   legend?: string;
 }
 
-/** The two compact routine columns ("●●○● 3/4"), one per check-in. */
-export const SUMMARY_HEADER: Record<Phase, string> = { bedtime: 'Bedtime routine', morning: 'Morning routine' };
+/** The compact routine columns ("●●○● 3/4"), one per list. */
+export const SUMMARY_HEADER: Record<RoutinePhase, string> = { bedtime: 'Bedtime routine', morning: 'Morning routine', anytime: 'Anytime routine' };
 const DERIVED = new Set(['Day', 'Hours asleep']);
 const NUMERIC = new Set(['Hours asleep', 'Minutes to fall asleep', 'Times woke up', 'Rested (1-5)']);
 const col = (header: string, group: ColumnGroup, width: number, value: Column['value']): Column =>
@@ -87,20 +91,23 @@ function parseCsv(text: string): string[][] {
 
 // ---------- times ----------
 
-/** "2026-09-26T23:30:00-07:00" → "11:30 PM" (the wall clock as recorded) */
+/** "2026-09-26T23:30:00-07:00" → "11:30 PM", or "23:30" in 24-hour mode (the wall clock as recorded) */
 function clock(iso: string | null): string {
   if (!iso) return '';
   const [h, m] = iso.slice(11, 16).split(':').map(Number);
-  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+  return formatTime(h, m);
 }
 
-/** "11:30 PM" on a night → local ISO timestamp on the right calendar day */
-function fromClock(raw: string, nightOf: string, phase: Phase): string | null {
-  const m = raw.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!m) return null;
-  const pm = m[3].toUpperCase() === 'PM';
-  const hour = (+m[1] % 12) + (pm ? 12 : 0);
-  const day = phase === 'morning' || !pm ? addDays(nightOf, 1) : nightOf;
+// Reading accepts both styles whatever the setting is, so old files and sheets always import.
+const CLOCK = /^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i;
+
+/** "11:30 PM" or "23:30" on a night → local ISO timestamp on the right calendar day */
+function fromClock(raw: string, nightOf: string, phase: RoutinePhase): string | null {
+  const m = raw.trim().match(CLOCK);
+  if (!m || +m[1] > 23 || +m[2] > 59) return null;
+  const hour = m[3] ? (+m[1] % 12) + (m[3].toUpperCase() === 'PM' ? 12 : 0) : +m[1];
+  const pm = hour >= 12;
+  const day = phase !== 'anytime' && (phase === 'morning' || !pm) ? addDays(nightOf, 1) : nightOf;
   const [y, mo, d] = day.split('-').map(Number);
   return toLocalIso(new Date(y, mo - 1, d, hour, +m[2]));
 }
@@ -122,12 +129,13 @@ export const REQUIRED_COLUMN = 'Night of';
  * first one compact summary column, then one detail column per item (hidden items too).
  */
 async function allColumns(): Promise<Column[]> {
+  await clockFormatReady; // times are written in the saved 12/24-hour style, never a guess
   const items = await store.routine.list();
   // "●●○● 3/4": a dot per current routine item in order, filled when done. Blank if none were done.
-  const summary = (phase: Phase): Column => {
+  const summary = (phase: RoutinePhase): Column => {
     const current = items.filter((i) => i.phase === phase && !i.archived).sort((a, b) => a.sortOrder - b.sortOrder);
     return {
-      ...col(SUMMARY_HEADER[phase], phase, 26, (e) => {
+      ...col(SUMMARY_HEADER[phase], groupOf(phase), 26, (e) => {
         const done = current.map((i) => e.routine[i.id] != null && e.routine[i.id] !== false);
         const n = done.filter(Boolean).length;
         return n === 0 ? null : `${done.map((d) => (d ? '●' : '○')).join('')} ${n}/${current.length}`;
@@ -141,12 +149,12 @@ async function allColumns(): Promise<Column[]> {
     : item.kind === 'check' ? 'yes'
     : item.kind === 'time' ? clock(String(v))
     : typeof v === 'boolean' ? String(v) : v;
-  const routineCols = (phase: Phase) =>
+  const routineCols = (phase: RoutinePhase) =>
     items
       .filter((i) => i.phase === phase)
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((i) => ({
-        ...col(PHASE_PREFIX[phase] + i.label, phase, 14, (e) => routineCell(i, e.routine[i.id])),
+        ...col(PHASE_PREFIX[phase] + i.label, groupOf(phase), 14, (e) => routineCell(i, e.routine[i.id])),
         numeric: i.kind === 'number',
         detail: true,
       }));
@@ -159,6 +167,8 @@ async function allColumns(): Promise<Column[]> {
     ...BASE_COLUMNS.slice(lastBedtime + 1),
     summary('morning'),
     ...routineCols('morning'),
+    // The "anytime" list comes last, and only once it has items (so it adds nothing if you don't use it).
+    ...(items.some((i) => i.phase === 'anytime') ? [summary('anytime'), ...routineCols('anytime')] : []),
   ].map((c) => ({ ...c, derived: c.derived ?? DERIVED.has(c.header) }));
 }
 
@@ -215,7 +225,7 @@ export interface ExportOptions {
 /** A night with nothing recorded, for the blank rows of fillGaps. */
 const emptyEntry = (nightOf: string): Entry => ({
   id: 0, nightOf, weekday: weekdayOf(nightOf), inBedAt: null, triedSleepAt: null, sleepLatencyMin: null,
-  wokeAt: null, dayStartedAt: null, hoursAsleep: null, wakeCount: null, rested: null,
+  wokeAt: null, dayStartedAt: null, hoursAsleep: null, wakeCount: null, rested: null, restedSkipped: false,
   bedtimeNote: null, morningNote: null, dream: null, tags: [], routine: {}, updatedAt: '',
 });
 
@@ -273,7 +283,7 @@ export interface ImportResult {
 function guessKind(values: string[]): RoutineItem['kind'] {
   const filled = values.filter((v) => v.trim() !== '');
   if (filled.every((v) => /^yes$/i.test(v))) return 'check';
-  if (filled.every((v) => /^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(v))) return 'time';
+  if (filled.every((v) => CLOCK.test(v.trim()))) return 'time';
   if (filled.every((v) => v.trim() !== '' && !Number.isNaN(Number(v)))) return 'number';
   return 'text';
 }
@@ -287,7 +297,7 @@ export async function routineColumnsFor(header: string[], body: string[][]): Pro
   const items = await store.routine.list();
   const cols: RoutineColumn[] = [];
   for (const [index, name] of header.entries()) {
-    const phase = (Object.keys(PHASE_PREFIX) as Phase[]).find((p) => name.startsWith(PHASE_PREFIX[p]));
+    const phase = (Object.keys(PHASE_PREFIX) as RoutinePhase[]).find((p) => name.startsWith(PHASE_PREFIX[p]));
     if (!phase) continue;
     const label = name.slice(PHASE_PREFIX[phase].length);
     const values = body.map((r) => r[index] ?? '');

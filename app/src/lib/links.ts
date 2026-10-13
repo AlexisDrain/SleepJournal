@@ -7,5 +7,8 @@
 export const SHEET_TEMPLATE_URL: string =
   'https://docs.google.com/spreadsheets/d/1l50vz3VIxr2xL9UeE2nO9G9v37i5nPfvdZRehS89KOI/copy';
 
+/** The project's home: source code, and where to ask for help or report a problem. */
+export const REPO_URL: string = 'https://github.com/AlexisDrain/SleepJournal';
+
 /** The step-by-step setup guide for Google Sheet sync. */
 export const SHEET_GUIDE_URL: string = '';

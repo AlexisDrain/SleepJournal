@@ -52,7 +52,7 @@ export default function WelcomeScreen() {
             body="Your journal is stored only on this device. No account, no server, no tracking." />
           <Muted>
             The Journal tab always opens on whatever is due now. Each entry is named after the night it
-            starts on: “Friday night → Saturday”.
+            starts on: “Friday night → Saturday morning”.
           </Muted>
 
           <View style={{ gap: space.sm }}>

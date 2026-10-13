@@ -10,7 +10,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { transaction } from './transaction';
 
-const MIGRATIONS: string[] = [
+export const MIGRATIONS: string[] = [
   // 1 — initial schema
   `
   -- One row per night. night_of is the date the night STARTS on:
@@ -107,6 +107,52 @@ const MIGRATIONS: string[] = [
   UPDATE routine_items SET sort_order = r.n
   FROM (SELECT id, row_number() OVER (PARTITION BY phase ORDER BY sort_order, id) AS n FROM routine_items) AS r
   WHERE r.id = routine_items.id;
+  `,
+
+  // 3 — a third routine list, "anytime"
+  `
+  -- SQLite can't change a CHECK, so routine_items is rebuilt with 'anytime' allowed. The ticks
+  -- (entry_routine) point at it, so they are set aside first and put back afterwards: dropping
+  -- routine_items while they still pointed at it would delete them (ON DELETE CASCADE).
+  CREATE TABLE entry_routine_keep AS SELECT entry_id, item_id, value FROM entry_routine;
+  DROP TABLE entry_routine;
+
+  CREATE TABLE routine_items_new (
+    id         INTEGER PRIMARY KEY,
+    label      TEXT NOT NULL,
+    phase      TEXT NOT NULL CHECK (phase IN ('bedtime', 'morning', 'anytime')),
+    kind       TEXT NOT NULL DEFAULT 'check' CHECK (kind IN ('check', 'time', 'number', 'text')),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    archived   INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)), -- hidden, history kept
+    uid        TEXT,
+    updated_at TEXT NOT NULL DEFAULT ''
+  ) STRICT;
+  INSERT INTO routine_items_new (id, label, phase, kind, sort_order, archived, uid, updated_at)
+    SELECT id, label, phase, kind, sort_order, archived, uid, updated_at FROM routine_items;
+  DROP TABLE routine_items;
+  ALTER TABLE routine_items_new RENAME TO routine_items;
+  CREATE UNIQUE INDEX routine_items_uid_idx ON routine_items (uid);
+
+  CREATE TABLE entry_routine (
+    entry_id INTEGER NOT NULL REFERENCES entries(id)       ON DELETE CASCADE,
+    item_id  INTEGER NOT NULL REFERENCES routine_items(id) ON DELETE CASCADE,
+    value    TEXT    NOT NULL CHECK (json_valid(value)),   -- JSON: true | "…" | 2
+    PRIMARY KEY (entry_id, item_id)
+  ) STRICT;
+  INSERT INTO entry_routine (entry_id, item_id, value) SELECT entry_id, item_id, value FROM entry_routine_keep;
+  DROP TABLE entry_routine_keep;
+  `,
+
+  // 4 — tags can be hidden (like routine items: off the list, history kept)
+  `
+  ALTER TABLE tags ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1));
+  `,
+
+  // 5 — "how rested" can be deliberately left empty
+  `
+  -- The app pre-selects 3 for "rested". 1 here means you cleared it on purpose, so an empty
+  -- rested stays empty instead of going back to 3.
+  ALTER TABLE entries ADD COLUMN rested_skipped INTEGER NOT NULL DEFAULT 0 CHECK (rested_skipped IN (0, 1));
   `,
 ];
 

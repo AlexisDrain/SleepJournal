@@ -12,7 +12,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadExcluded, loadRoutineDetail } from '@/lib/exportPrefs';
 import { secureStorage } from '@/lib/secureStorage';
-import type { Phase, RoutineItem } from '@/lib/types';
+import type { RoutineItem, RoutinePhase } from '@/lib/types';
 import { isEmptyRow, routineColumnsFor, rowToPatch, sheetPayload } from './csv';
 import { getDb, store, writeEntry } from './store';
 import { transaction } from './transaction';
@@ -21,7 +21,7 @@ const CONNECTION_KEY = 'sleepjournal.sheetConnection';
 const STATE_KEY = 'sleepjournal.sheetSync.v1';
 const PUSH_BATCH = 200;
 /** The version of google-sheets/SleepJournalSync.gs this app was built for (its SCRIPT_VERSION). */
-export const LATEST_SCRIPT_VERSION = 4;
+export const LATEST_SCRIPT_VERSION = 5;
 
 export interface Connection { url: string; secret: string }
 
@@ -133,6 +133,18 @@ export async function connect(urlInput: string, keyInput = ''): Promise<string> 
   return sheet;
 }
 
+/**
+ * After the 12/24-hour setting changed: writes every night to the sheet again in the new style.
+ * It first takes in anything waiting in the sheet, then marks all nights as changed so they are
+ * sent (the sheet keeps a row unless the app's copy is newer). Does nothing if no sheet is connected.
+ */
+export async function resendAllNights(): Promise<void> {
+  if (!(await getConnection())) return;
+  await syncNow().catch(() => {}); // offline: the nights are still marked and go out on the next sync
+  await (await getDb()).runAsync(`UPDATE entries SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`);
+  requestSync(0);
+}
+
 /** Forget the sheet on this phone. Nothing is deleted on either side. */
 export async function disconnect() {
   await secureStorage.remove(CONNECTION_KEY);
@@ -144,7 +156,7 @@ export async function disconnect() {
 /** A routine item as the sheet's "Routine items" tab keeps it. */
 interface SheetRoutineItem {
   id: string; // RoutineItem.uid
-  phase: Phase;
+  phase: RoutinePhase;
   label: string;
   kind: RoutineItem['kind'];
   order: number;

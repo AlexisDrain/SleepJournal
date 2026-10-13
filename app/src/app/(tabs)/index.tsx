@@ -6,17 +6,20 @@ import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { CalendarSheet } from '@/components/CalendarSheet';
+import { Panel } from '@/components/Panel';
+import { TagManager } from '@/components/TagManager';
 import { LatencyPicker, NightSwitcher, RESTED_LABELS, RestedScale, TagPicker } from '@/components/inputs';
 import { NapsCard } from '@/components/NapsCard';
 import { TimeField } from '@/components/TimeField';
 import { Button, Chip, ErrorBox, Input, Muted, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
-import { dueSlot, isFilled, loadUsualTimes, pickStart, usualTimes, wakeTimeProblem, type Start, type UsualTimes } from '@/lib/journal';
+import { dueSlot, isFilled, loadUsualTimes, pickStart, untilHint, usualTimes, wakeTimeProblem, type Start, type UsualTimes } from '@/lib/journal';
 import { loadJournalMode, saveJournalMode, type JournalMode } from '@/lib/journalMode';
 import { syncReminders } from '@/lib/notifications';
 import { colors, radius, space } from '@/lib/theme';
 import { clockOf, currentNight, formatClock, formatDuration } from '@/lib/time';
+import { useHour24 } from '@/lib/clockFormat';
 import { usePhaseOrder } from '@/lib/phaseOrder';
 import type { Entry, EntryPatch, Phase, Tag } from '@/lib/types';
 import { useAutosave, type SaveStatus } from '@/lib/useAutosave';
@@ -24,7 +27,7 @@ import { useDraft } from '@/lib/useDraft';
 import { useEntry } from '@/lib/useEntry';
 import { NARROW_PAGE, page, useWide, WIDE_PAGE } from '@/lib/useLayout';
 
-const DEFAULT_RESTED = 3;
+const DEFAULT_RESTED = 3; // "How rested" starts on the middle answer
 const MORNING_KEYS: (keyof EntryPatch)[] = ['sleepLatencyMin', 'wokeAt', 'dayStartedAt', 'rested', 'morningNote', 'dream'];
 const RETARGET_AFTER_MS = 10 * 60_000; // coming back after this long re-picks what's due
 const other = (p: Phase): Phase => (p === 'bedtime' ? 'morning' : 'bedtime');
@@ -42,9 +45,11 @@ export default function JournalScreen() {
   const [stepsAsked, setStepsAsked] = useState<Phase | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const wide = useWide();
-  const [phases, swapPhases] = usePhaseOrder(); // Bedtime first, or Morning first if you swapped them
+  useHour24(); // redraw the times if the 12/24-hour setting changes
+  const [phases, swapPhases] = usePhaseOrder('journal'); // Bedtime first, or Morning first if you swapped them
 
-  const { entry, setEntry, tags, loading, error, reload, refresh } = useEntry(nightOf);
+  const { entry, setEntry, tags, loading, error, reload, refresh, reloadLists } = useEntry(nightOf);
+  const [managingTags, setManagingTags] = useState(false);
   const draft = useDraft(entry, nightOf);
 
   useEffect(() => {
@@ -60,9 +65,11 @@ export default function JournalScreen() {
   // ---------- autosave ----------
   const autosave = useAutosave(nightOf, draft.patch, {
     prepare: (p) => {
-      // "Rested" shows 3 until changed; write that default once the morning has been started.
+      // "Rested" shows 3 until changed: write that default once the morning has been started,
+      // unless you cleared it on purpose (tapping the chosen number again).
       const morningTouched = MORNING_KEYS.some((k) => k in p);
-      return morningTouched && entry?.rested == null && !('rested' in p) ? { rested: DEFAULT_RESTED, ...p } : p;
+      const skipped = p.restedSkipped ?? entry?.restedSkipped ?? false;
+      return morningTouched && !skipped && entry?.rested == null && !('rested' in p) ? { rested: DEFAULT_RESTED, ...p } : p;
     },
     onSaved: (saved, sent) => {
       if (saved.nightOf === nightOf) {
@@ -145,7 +152,8 @@ export default function JournalScreen() {
   // One question at a time only for the check-in the app opened on; browsing other nights shows everything.
   const stepPhase: Phase | null = mode !== 'steps' ? null : stepsAsked ?? (onStartNight && !stepsDone ? start.open : null);
 
-  const rested = draft.get('rested') ?? DEFAULT_RESTED;
+  // A saved answer always shows. Otherwise 3 is pre-selected, unless you cleared it for this night.
+  const rested = draft.get('rested') ?? (draft.get('restedSkipped') ? null : DEFAULT_RESTED);
   const fields: FieldProps = { nightOf, draft, tags, rested, usual };
   const filledNow = (phase: Phase) =>
     isFilled({ inBedAt: draft.get('inBedAt'), triedSleepAt: draft.get('triedSleepAt'), wokeAt: draft.get('wokeAt') }, phase);
@@ -163,6 +171,19 @@ export default function JournalScreen() {
           <ActivityIndicator color={colors.night} />
         ) : (
           <>
+            {/* Centered under the date, like Swap / Edit on the Routines tab. */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: space.md, marginBottom: space.md }}>
+              {!stepPhase && <Chip label={wide ? '⇄ Swap' : '⇅ Swap'} onPress={swapPhases} />}
+              <Chip label={stepPhase ? 'Show everything' : 'One question at a time'}
+                onPress={() => {
+                  if (stepPhase) return chooseMode('all');
+                  // Which check-in to ask about: the one the app opened on, else the one due now,
+                  // else the first one of this night that isn't filled in.
+                  chooseMode('steps', onStartNight ? start.open
+                    : nightOf === due.nightOf ? due.phase
+                    : filledNow('bedtime') && !filledNow('morning') ? 'morning' : 'bedtime');
+                }} />
+            </View>
             {missedBanner && (
               <MissedBanner phase={start.open}
                 onSkip={() => openAt({ nightOf: due.nightOf, open: due.phase })}
@@ -185,7 +206,7 @@ export default function JournalScreen() {
                     <View key={phase} style={wide ? { flex: 1 } : undefined}>
                       <Section phase={phase} expanded={wide || expanded[phase]} collapsible={!wide} filled={filledNow(phase)}
                         onToggle={() => setExpanded((x) => ({ ...x, [phase]: !x[phase] }))}
-                        summary={summary(phase, entry)}>
+                        summary={summary(phase, entry)} hint={untilHint(phase)}>
                         <AllSteps steps={phase === 'bedtime' ? bedtimeSteps(fields) : morningSteps(fields)} />
                       </Section>
                     </View>
@@ -198,36 +219,23 @@ export default function JournalScreen() {
                 }}>
                   <Label>Tags · for this night</Label>
                   <TagPicker all={tags} selected={draft.get('tags') ?? []} onChange={(t) => draft.set('tags', t)} />
+                  <Pressable onPress={() => setManagingTags(true)} hitSlop={8} style={{ alignSelf: 'flex-start' }}>
+                    <Text style={{ color: colors.muted, textDecorationLine: 'underline' }}>Hide or delete tags…</Text>
+                  </Pressable>
                 </View>
               </>
             )}
 
-            <Pressable hitSlop={8}
-              onPress={() => {
-                if (stepPhase) return chooseMode('all');
-                // Which check-in to ask about: the one the app opened on, else the one due now,
-                // else the first one of this night that isn't filled in.
-                chooseMode('steps', onStartNight ? start.open
-                  : nightOf === due.nightOf ? due.phase
-                  : filledNow('bedtime') && !filledNow('morning') ? 'morning' : 'bedtime');
-              }}
-              style={{ alignSelf: 'center', marginTop: space.lg }}>
-              <Text style={{ color: colors.muted, textDecorationLine: 'underline' }}>
-                {stepPhase ? 'Show everything on one page' : 'Ask me one question at a time'}
-              </Text>
-            </Pressable>
-            {!stepPhase && (
-              <Pressable onPress={swapPhases} hitSlop={8} style={{ alignSelf: 'center', marginTop: space.md }}
-                accessibilityRole="button" accessibilityLabel="Swap the order of Bedtime and Morning">
-                <Text style={{ color: colors.muted, textDecorationLine: 'underline' }}>
-                  {phases[0] === 'bedtime' ? 'Show Morning first' : 'Show Bedtime first'}
-                </Text>
-              </Pressable>
-            )}
             {actionError && <ErrorBox message={actionError} />}
           </>
         )}
       </ScrollView>
+      <Panel visible={managingTags} onClose={() => setManagingTags(false)}>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>Tags</Text>
+        {/* A deleted tag also leaves this night, so re-read the night as well as the list. */}
+        <TagManager onChanged={() => { reloadLists(); refresh(); }} />
+        <Button title="Done" small color={colors.chip} textColor={colors.text} onPress={() => setManagingTags(false)} />
+      </Panel>
       <CalendarSheet visible={calendarOpen} selected={nightOf} onClose={() => setCalendarOpen(false)}
         onPick={(n) => {
           setCalendarOpen(false);
@@ -243,7 +251,7 @@ type FieldProps = {
   nightOf: string;
   draft: ReturnType<typeof useDraft>;
   tags: Tag[];
-  rested: number;
+  rested: number | null;
   usual: UsualTimes;
 };
 
@@ -364,7 +372,10 @@ function morningSteps({ nightOf, draft, rested, usual }: FieldProps): Step[] {
       id: 'rested',
       question: 'How rested do you feel?',
       label: 'How rested do you feel?',
-      body: <RestedScale value={rested} onChange={(v) => draft.set('rested', v)} />,
+      body: <RestedScale value={rested} onChange={(v) => {
+        draft.set('rested', v);
+        draft.set('restedSkipped', v === null); // cleared on purpose: don't go back to the pre-selected 3
+      }} />,
     },
   ];
 }
@@ -437,13 +448,15 @@ const SECTION = {
   morning: { icon: '☀', title: 'Morning', accent: colors.morning },
 };
 
-function Section({ phase, expanded, collapsible, filled, onToggle, summary, children }: {
+function Section({ phase, expanded, collapsible, filled, onToggle, summary, hint, children }: {
   phase: Phase;
   expanded: boolean;
   collapsible: boolean;
   filled: boolean;
   onToggle: () => void;
   summary: string;
+  /** The hours this check-in covers, e.g. "until 3 PM" (shown on every night). */
+  hint: string;
   children: ReactNode;
 }) {
   const s = SECTION[phase];
@@ -460,7 +473,8 @@ function Section({ phase, expanded, collapsible, filled, onToggle, summary, chil
           <Text style={{ color: filled ? colors.success : colors.text, fontSize: 18, fontWeight: '700' }}>
             {s.title}{filled ? '  ✓' : ''}
           </Text>
-          {!expanded && <Muted>{summary}</Muted>}
+          {/* Under the title: what's filled in when folded, otherwise how long it's this check-in's turn. */}
+          {!expanded ? <Muted>{summary}</Muted> : hint ? <Muted>{hint}</Muted> : null}
         </View>
         {collapsible && <Text style={{ color: colors.muted, fontSize: 16 }}>{expanded ? '▴' : '▾'}</Text>}
       </Pressable>

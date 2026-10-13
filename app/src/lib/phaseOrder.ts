@@ -1,35 +1,42 @@
-// Which check-in is shown first, Bedtime or Morning: a display choice remembered on this device.
-// It only changes the order on screen (Journal and Routines); the data and the spreadsheet's
-// columns stay as they are.
+// Which check-in is shown first, Bedtime or Morning: a display choice remembered on this device,
+// separately for the Journal and for Routines. It only changes the order on screen; the data and
+// the spreadsheet's columns stay as they are.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 import type { Phase } from './types';
 
-const KEY = 'sleepjournal.morningFirst.v1';
+export type OrderedScreen = 'journal' | 'routines';
+
+const KEY: Record<OrderedScreen, string> = {
+  journal: 'sleepjournal.morningFirst.v1',
+  routines: 'sleepjournal.morningFirst.routines.v1',
+};
 const BEDTIME_FIRST: Phase[] = ['bedtime', 'morning'];
 const MORNING_FIRST: Phase[] = ['morning', 'bedtime'];
 
-let order = BEDTIME_FIRST;
+const order: Record<OrderedScreen, Phase[]> = { journal: BEDTIME_FIRST, routines: BEDTIME_FIRST };
 const listeners = new Set<() => void>();
-const set = (next: Phase[]) => {
-  order = next;
+const set = (screen: OrderedScreen, next: Phase[]) => {
+  order[screen] = next;
   listeners.forEach((fn) => fn());
 };
 
-AsyncStorage.getItem(KEY).then((v) => v === '1' && set(MORNING_FIRST), () => {});
+for (const screen of Object.keys(KEY) as OrderedScreen[]) {
+  AsyncStorage.getItem(KEY[screen]).then((v) => v === '1' && set(screen, MORNING_FIRST), () => {});
+}
 
 function subscribe(fn: () => void) {
   listeners.add(fn);
   return () => void listeners.delete(fn);
 }
 
-/** The two check-ins in the order to show them, and a function that swaps them (on every screen). */
-export function usePhaseOrder(): [Phase[], () => void] {
-  const phases = useSyncExternalStore(subscribe, () => order, () => order);
+/** The two check-ins in the order this screen shows them, and a function that swaps them. */
+export function usePhaseOrder(screen: OrderedScreen): [Phase[], () => void] {
+  const phases = useSyncExternalStore(subscribe, () => order[screen], () => order[screen]);
   const swap = () => {
-    const next = order === BEDTIME_FIRST ? MORNING_FIRST : BEDTIME_FIRST;
-    set(next);
-    AsyncStorage.setItem(KEY, next === MORNING_FIRST ? '1' : '0').catch(() => {});
+    const next = order[screen] === BEDTIME_FIRST ? MORNING_FIRST : BEDTIME_FIRST;
+    set(screen, next);
+    AsyncStorage.setItem(KEY[screen], next === MORNING_FIRST ? '1' : '0').catch(() => {});
   };
   return [phases, swap];
 }

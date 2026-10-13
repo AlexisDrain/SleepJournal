@@ -78,12 +78,15 @@ export function GoogleSheetCard() {
                 ? `Last synced ${ago(state.lastSyncAt)}. Syncs automatically after changes.`
                 : 'Not synced yet.'}
           </Muted>
+          <Muted>Tip: connect this same sheet on your other devices (phone, computer) to keep them all in sync.</Muted>
           {state && state.scriptVersion < LATEST_SCRIPT_VERSION && (
             <Text style={{ color: colors.morning }}>
               Your sheet's script is an older version. Your nights still sync, but
               {state.scriptVersion < 3
                 ? " changes to your routine list (new, renamed or reordered items) won't reach your other devices"
-                : ' the "Open sheet" button needs the newer script'}
+                : state.scriptVersion < 4
+                  ? ' the "Open sheet" button and the Anytime routine list need the newer script'
+                  : " items on the Anytime routine list won't reach your other devices"}
               {' '}until it's updated. To update it, paste the current script into the sheet and deploy a new version (see "Updating
               the script" in the setup guide).
             </Text>
@@ -100,6 +103,10 @@ export function GoogleSheetCard() {
           <Muted>
             Keep your journal in your own private Google Sheet: one tab per year, and edits in either place
             sync both ways. No Google login in the app.
+          </Muted>
+          <Muted>
+            Tip: connect the same sheet on your phone and your computer, and your journal stays in sync
+            between them.
           </Muted>
           <Muted>
             First set up your sheet on a computer: {SHEET_TEMPLATE_URL

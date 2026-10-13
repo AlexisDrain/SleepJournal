@@ -14,7 +14,7 @@ export function useEntry(nightOf: string) {
     const [e, r, t] = await Promise.all([store.getEntry(nightOf), store.routine.list(), store.tags.list()]);
     setEntry(e);
     setRoutine(r.filter((x) => !x.archived));
-    setTags(t);
+    setTags(t.filter((x) => !x.archived)); // hidden tags aren't offered (one already on this night still shows)
   }, [nightOf]);
 
   const load = useCallback(async () => {
@@ -40,7 +40,7 @@ export function useEntry(nightOf: string) {
   const reloadLists = useCallback(async () => {
     const [r, t] = await Promise.all([store.routine.list(), store.tags.list()]);
     setRoutine(r.filter((x) => !x.archived));
-    setTags(t);
+    setTags(t.filter((x) => !x.archived));
   }, []);
 
   return { entry, setEntry, routine, tags, loading, error, reload: load, refresh, reloadLists };

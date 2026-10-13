@@ -22,9 +22,9 @@ google-sheets/    the optional Google Sheet sync script and its setup guide
 ## What's in the app
 
 - **Journal**: bedtime, then morning, for one night. It saves as you type, opens on whatever is due
-  now, and asks new users one question at a time ("Show everything on one page" switches that off).
+  now, and asks new users one question at a time ("Show everything" switches that off).
   Tap the date for a calendar; naps for the day sit under Morning.
-- **Routines**: tick off a night's bedtime / morning routine like a to-do list, or tap Edit to change
+- **Routines**: tick off a night's bedtime / morning / anytime lists like a to-do list, or tap Edit to change
   the items, their order and the tags.
 - **Sheet**: the whole journal as a color-coded spreadsheet, one page per year, drawn from the
   on-device database.

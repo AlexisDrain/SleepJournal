@@ -12,7 +12,7 @@ import { ExportSheet } from '@/components/ExportSheet';
 import { Button, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { buildTable } from '@/db/csv';
 import type { ColumnGroup, SheetColumn, SheetValue } from '@/db/xlsx';
-import { loadExcluded, loadRoutineDetail } from '@/lib/exportPrefs';
+import { loadExcluded, loadFillGaps, loadRoutineDetail } from '@/lib/exportPrefs';
 import { colors, space } from '@/lib/theme';
 
 const ROW_HEIGHT = 34;
@@ -38,8 +38,9 @@ export default function SheetScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      // The same field choices as exports, so this is a preview of what an export would contain.
-      const t = await buildTable({ exclude: await loadExcluded(), routineDetail: await loadRoutineDetail(), plainHeaders: true });
+      // The Sheet tab's own column choices (the "Column settings" button), saved separately from the export ones.
+      const [exclude, routineDetail, fillGaps] = await Promise.all([loadExcluded('sheet'), loadRoutineDetail('sheet'), loadFillGaps('sheet')]);
+      const t = await buildTable({ exclude, routineDetail, fillGaps, plainHeaders: true });
       setColumns(t.columns);
       setAllRows(t.rows); // oldest first, as in the Google Sheet
     } catch (e) {
@@ -157,7 +158,7 @@ export default function SheetScreen() {
               : `${rows.length} night${rows.length === 1 ? '' : 's'}${years.length > 1 ? ` in ${year}` : ''}${scrollable ? ' · swipe sideways for more columns →' : ''}`}
           </Muted>
         </View>
-        <Button title="Fields & export…" small onPress={() => setChoosing(true)} color={colors.chip} textColor={colors.text} />
+        <Button title="Column settings" small onPress={() => setChoosing(true)} color={colors.chip} textColor={colors.text} />
       </View>
       {error && <View style={{ paddingHorizontal: space.lg }}><ErrorBox message={error} onRetry={load} /></View>}
       {years.length > 1 && (
@@ -235,7 +236,7 @@ export default function SheetScreen() {
         </View>
       )}
 
-      <ExportSheet visible={choosing} onError={setError}
+      <ExportSheet mode="view" visible={choosing} onError={setError}
         onClose={() => {
           setChoosing(false);
           setTimeout(load, 300); // the field choices may have changed

@@ -1,7 +1,8 @@
 // Rules shared by the Journal screen and reminders: what "filled in" means,
 // and which check-in to show when the app opens.
 import { store } from '@/db/store';
-import { addDays, clockOf, currentNight, toLocalIso, type ClockTime } from './time';
+import { formatHour } from './clockFormat';
+import { addDays, clockOf, currentNight, toDateString, toLocalIso, type ClockTime } from './time';
 import type { Entry, Phase } from './types';
 
 /** A check-in counts as filled once its key time is in: bed/sleep time at night, wake time in the morning. */
@@ -11,16 +12,39 @@ export function isFilled(e: Pick<Entry, 'inBedAt' | 'triedSleepAt' | 'wokeAt'> |
 }
 
 /** Until this hour of the early morning, you are probably still going to bed, not getting up. */
-const LATE_BEDTIME_UNTIL = 4;
+const LATE_BEDTIME_UNTIL = 3;
+/** The hour of the afternoon when the app moves on to the next night (see currentNight). */
+const NEXT_NIGHT_AT = 15;
+
+/**
+ * A short reminder of the hours a check-in covers:
+ * bedtime "until 3 AM", morning "until 3 PM", when the app moves to the next night.
+ */
+export function untilHint(phase: Phase): string {
+  return `until ${formatHour(phase === 'bedtime' ? LATE_BEDTIME_UNTIL : NEXT_NIGHT_AT)}`;
+}
+
+/**
+ * The calendar day the "anytime" routine list shows next to a given night. Anytime runs midnight
+ * to midnight, while a night runs 3 PM to 3 PM, so the two don't line up:
+ *   - on the current night it is always today;
+ *   - on any other night it is the day that night ends on ("Friday night → Saturday morning": Saturday).
+ * (Only between 3 PM and midnight do those differ, when today is the day the current night begins.)
+ * Its ticks are stored with the night of that same date, so the spreadsheet row for a date holds
+ * that date's anytime list.
+ */
+export function anytimeDay(nightOf: string, now = new Date()): string {
+  return nightOf === currentNight(now) ? toDateString(now) : addDays(nightOf, 1);
+}
 
 /**
  * The check-in that's due right now: from 3 PM it's tonight's bedtime, and it stays bedtime
- * (of the night that began yesterday) until 4 AM, for nights you go to bed after midnight.
- * From 4 AM to 3 PM it's last night's morning.
+ * (of the night that began yesterday) until 3 AM, for nights you go to bed after midnight.
+ * From 3 AM to 3 PM it's last night's morning.
  */
 export function dueSlot(now = new Date()): { nightOf: string; phase: Phase } {
   const h = now.getHours();
-  return { nightOf: currentNight(now), phase: h >= 15 || h < LATE_BEDTIME_UNTIL ? 'bedtime' : 'morning' };
+  return { nightOf: currentNight(now), phase: h >= NEXT_NIGHT_AT || h < LATE_BEDTIME_UNTIL ? 'bedtime' : 'morning' };
 }
 
 /** The check-in right before a given one. */

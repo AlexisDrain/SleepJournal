@@ -1,5 +1,5 @@
 import { Pressable, Text, View } from 'react-native';
-import type { Phase } from '@/lib/types';
+import type { Phase, RoutinePhase } from '@/lib/types';
 import { colors, space } from '@/lib/theme';
 import { canSetToNow, formatClockTime, nowOnNight, timeOnNight, toLocalIso, type ClockTime } from '@/lib/time';
 import { TimePicker } from './TimePicker';
@@ -8,7 +8,7 @@ import { Row } from './ui';
 export { TimePicker };
 
 /** A picked clock time as an ISO timestamp on the right calendar day for the night. */
-export function pickedOnNight(d: Date, nightOf: string, phase: Phase): string {
+export function pickedOnNight(d: Date, nightOf: string, phase: RoutinePhase): string {
   return toLocalIso(timeOnNight(nightOf, d.getHours(), d.getMinutes(), phase));
 }
 

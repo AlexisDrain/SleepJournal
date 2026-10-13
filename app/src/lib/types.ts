@@ -1,4 +1,6 @@
 export type Phase = 'bedtime' | 'morning';
+/** Which list a routine item is on: one of the two check-ins, or "anytime" (not tied to either). */
+export type RoutinePhase = Phase | 'anytime';
 
 export interface Entry {
   id: number;
@@ -12,6 +14,8 @@ export interface Entry {
   hoursAsleep: number | null; // computed in SQL
   wakeCount: number | null;
   rested: number | null; // 1 exhausted … 5 well rested
+  /** You cleared "rested" on purpose for this night (so the pre-selected 3 doesn't come back). Kept on this device only. */
+  restedSkipped: boolean;
   bedtimeNote: string | null;
   morningNote: string | null;
   dream: string | null;
@@ -25,13 +29,14 @@ export type RoutineValue = string | number | boolean | null;
 type Computed = 'id' | 'nightOf' | 'weekday' | 'hoursAsleep' | 'updatedAt';
 export type EntryPatch = Partial<Omit<Entry, Computed>>;
 
-export interface Tag { id: number; name: string }
+/** `archived` = hidden: off the list you pick from, but still on the nights that have it. */
+export interface Tag { id: number; name: string; archived: boolean }
 
 /** A bedtime/morning routine row. Every item is checked off; some also record a value. */
 export interface RoutineItem {
   id: number;
   label: string;
-  phase: Phase;
+  phase: RoutinePhase;
   kind: 'check' | 'time' | 'number' | 'text';
   sortOrder: number;
   archived: boolean;
