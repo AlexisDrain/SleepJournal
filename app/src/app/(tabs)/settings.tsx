@@ -98,14 +98,18 @@ export default function SettingsScreen() {
 
       <ExportSheet visible={exporting} onClose={() => setExporting(false)} onError={setError} />
 
+      <Card title="Welcome screen">
+        <Muted>The short overview of how the app works, shown the first time you opened it.</Muted>
+        <Button title="Show the welcome again" onPress={() => setWelcomeSeen(false)} small
+          color={colors.chip} textColor={colors.text} />
+      </Card>
+
       <Card title="About">
         {/* The build number goes up with every release (scripts/release.js): compare it between devices. */}
         <Text style={{ color: colors.text }} selectable>
           Sleep Journal {buildInfo.version} · build {buildInfo.build}
         </Text>
-        <Muted>Published {buildInfo.date || 'from a development copy'}. If two devices show different build numbers, one of them hasn't updated yet.</Muted>
-        <Button title="Show the welcome again" onPress={() => setWelcomeSeen(false)} small
-          color={colors.chip} textColor={colors.text} />
+        <Muted>Published {buildInfo.date || 'from a development copy'}</Muted>
         <Muted>
           For support and to report issues, go to{' '}
           <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="link"
