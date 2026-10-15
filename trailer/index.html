@@ -260,18 +260,18 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
               <div class="chips"><span class="chipx">⇅ Swap</span><span class="chipx">Edit</span><span class="chipx">⟳ Sync</span></div>
               <div class="sec">
                 <div class="sech"><span class="ic">☾</span><div><strong>Bedtime</strong><small>until 3 AM</small></div></div>
-                <div class="item" data-t="15.5"><span class="box">✓</span>Brush teeth</div>
-                <div class="item" data-t="16.2"><span class="box">✓</span>Take meds / vitamins</div>
-                <div class="item" data-t="16.9"><span class="box">✓</span>Phone on charger</div>
+                <div class="item" data-t="15.3"><span class="box">✓</span>Brush teeth</div>
+                <div class="item" data-t="15.9"><span class="box">✓</span>Take meds / vitamins</div>
+                <div class="item" data-t="16.5"><span class="box">✓</span>Phone on charger</div>
               </div>
               <div class="sec mo">
                 <div class="sech"><span class="ic">☀</span><div><strong>Morning</strong><small>until 3 PM</small></div></div>
-                <div class="item" data-t="17.9"><span class="box">✓</span>Drink water</div>
-                <div class="item" data-t="18.6"><span class="box">✓</span>Get some sunlight</div>
+                <div class="item" data-t="17.3"><span class="box">✓</span>Drink water</div>
+                <div class="item" data-t="17.9"><span class="box">✓</span>Get some sunlight</div>
               </div>
               <div class="sec any">
                 <div class="sech"><span class="ic">✓</span><div><strong>Anytime</strong><small>Wednesday, Oct 14 · all day</small></div></div>
-                <div class="item" data-t="19.8"><span class="box">✓</span>Exercise</div>
+                <div class="item" data-t="18.9"><span class="box">✓</span>Exercise</div>
                 <div class="item"><span class="box">✓</span>Read 20 pages</div>
               </div>
             </div>
@@ -422,7 +422,7 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
     <button id="sound" type="button" aria-pressed="false">Sound: off</button>
     <audio id="music" src="Inspired.mp3" preload="auto"></audio>
     <div class="progress" aria-hidden="true"><i id="prog"></i></div>
-    <span class="tip" id="clock">0:00 / 0:54</span>
+    <span class="tip" id="clock">0:00 / 0:49</span>
   </div>
   <p class="tip">To turn this into a video file: press Sound so it says on, make the window full screen, press Restart, and record it with Xbox Game Bar (Win + Alt + R), which records the sound too.</p>
 </div>
@@ -430,10 +430,10 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
 <script>
 (() => {
   const SPLASH = 2;                                // the title card, before everything else
-  const BODY = 52.5;                               // the scenes after it
+  const BODY = 47.5;                               // the scenes after it
   const LENGTH = SPLASH + BODY;                    // seconds, then it loops
   // Opens straight on the Journal: no title screen to click away from.
-  const SCENES = [['s-journal', 0, 14.5], ['s-routines', 14.5, 24.5], ['s-desk', 24.5, 33.5], ['s-sync', 33.5, 46.5], ['s-end', 46.5, BODY]];
+  const SCENES = [['s-journal', 0, 14.5], ['s-routines', 14.5, 22.5], ['s-desk', 22.5, 30], ['s-sync', 30, 41.5], ['s-end', 41.5, BODY]];
   const $ = (id) => document.getElementById(id);
   const stage = $('stage'), viewport = $('viewport');
 
@@ -498,7 +498,7 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
 
   function scenes(t) {
     for (const [id, a, b] of SCENES) $(id).classList.toggle('on', t >= a && t < b);
-    $('brand').style.opacity = t < 46.5 ? 1 : 0;
+    $('brand').style.opacity = t < 41.5 ? 1 : 0;
 
     // Journal
     setTime($('j-inbed'), t, 1.1, '11:40 PM');
@@ -535,49 +535,49 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
     tapAt($('r-tap'), t, routineItems.map((el) => [+el.dataset.t, el.querySelector('.box')]));
 
     // On a computer: fill in the morning with the mouse, then tick routines.
-    setTime($('d-woke'), t, 25.6, '7:30 AM');
-    setTime($('d-start'), t, 26.5, '7:45 AM');
-    const dRested = after(t, 27.4) ? 4 : 3;
+    setTime($('d-woke'), t, 23.4, '7:30 AM');
+    setTime($('d-start'), t, 24.1, '7:45 AM');
+    const dRested = after(t, 24.8) ? 4 : 3;
     [...$('d-scale').children].forEach((el, i) => el.classList.toggle('sel', i + 1 === dRested));
-    const dDone = after(t, 27.8);
+    const dDone = after(t, 25.1);
     $('d-mor').classList.toggle('done', dDone);
     $('d-mor-t').textContent = dDone ? 'Morning ✓' : 'Morning';
-    const onRoutines = after(t, 28.6);
+    const onRoutines = after(t, 25.8);
     $('d-journal').style.display = onRoutines ? 'none' : 'flex';
     $('d-routines').style.display = onRoutines ? 'flex' : 'none';
     $('d-rail-j').classList.toggle('cur', !onRoutines);
     $('d-rail-r').classList.toggle('cur', onRoutines);
     $('d-saved').textContent = onRoutines ? 'Ticks save automatically' : 'Saved ✓';
-    $('d-water').classList.toggle('on', after(t, 29.7));
-    $('d-exercise').classList.toggle('on', after(t, 30.7));
-    pointerAt($('d-ptr'), t, [[25.6, $('d-woke')], [26.5, $('d-start')], [27.4, $('d-scale').children[3]],
-      [28.6, $('d-rail-r')], [29.7, $('d-water').querySelector('.box')], [30.7, $('d-exercise').querySelector('.box')]]);
+    $('d-water').classList.toggle('on', after(t, 26.7));
+    $('d-exercise').classList.toggle('on', after(t, 27.5));
+    pointerAt($('d-ptr'), t, [[23.4, $('d-woke')], [24.1, $('d-start')], [24.8, $('d-scale').children[3]],
+      [25.8, $('d-rail-r')], [26.7, $('d-water').querySelector('.box')], [27.5, $('d-exercise').querySelector('.box')]]);
 
     // Sync
-    const syncing = t >= 35.7 && t < 40.1, synced = t >= 40.1;
+    const syncing = t >= 31.4 && t < 35.7, synced = t >= 35.7;
     $('y-sync').textContent = synced ? 'Synced ✓' : syncing ? 'Syncing…' : '⟳ Sync';
     $('y-sync').classList.toggle('sel', syncing);
-    tapAt($('y-tap'), t, [[35.7, $('y-sync')]]);
+    tapAt($('y-tap'), t, [[31.4, $('y-sync')]]);
     const p = $('y-packet');
     const lerp = (a, b, k) => a + (b - a) * k;
     let pk = null;
-    if (t >= 36.0 && t < 37.1) { const k = (t - 36.0) / 1.1; pk = [lerp(285, 330, k), lerp(330, 330 - 60 * Math.sin(Math.PI * k), k)]; }
-    if (t >= 38.1 && t < 39.2) { const k = (t - 38.1) / 1.1; pk = [lerp(690, 760, k), lerp(330, 330 - 60 * Math.sin(Math.PI * k), k)]; }
+    if (t >= 31.7 && t < 32.8) { const k = (t - 31.7) / 1.1; pk = [lerp(285, 330, k), lerp(330, 330 - 60 * Math.sin(Math.PI * k), k)]; }
+    if (t >= 33.8 && t < 34.9) { const k = (t - 33.8) / 1.1; pk = [lerp(690, 760, k), lerp(330, 330 - 60 * Math.sin(Math.PI * k), k)]; }
     p.style.opacity = pk ? 1 : 0;
     if (pk) { p.style.left = pk[0] + 'px'; p.style.top = pk[1] + 'px'; }
     // And back the other way: an edit made on the desktop goes up to the sheet too (blue, arcing below).
     const p2 = $('y-packet2');
-    const back = t >= 40.6 && t < 41.7;
+    const back = t >= 36.0 && t < 37.1;
     p2.style.opacity = back ? 1 : 0;
-    if (back) { const k = (t - 40.6) / 1.1; p2.style.left = lerp(760, 690, k) + 'px'; p2.style.top = lerp(360, 360 + 60 * Math.sin(Math.PI * k), k) + 'px'; }
+    if (back) { const k = (t - 36.0) / 1.1; p2.style.left = lerp(760, 690, k) + 'px'; p2.style.top = lerp(360, 360 + 60 * Math.sin(Math.PI * k), k) + 'px'; }
     const gsNew = $('y-gs-new');
-    gsNew.classList.toggle('hide', t < 37.1);
-    gsNew.classList.toggle('flash', (t >= 37.1 && t < 38.3) || (t >= 41.7 && t < 42.8));
+    gsNew.classList.toggle('hide', t < 32.8);
+    gsNew.classList.toggle('flash', (t >= 32.8 && t < 33.9) || (t >= 37.1 && t < 38.2));
     const webNew = $('y-web-new');
-    webNew.classList.toggle('hide', t < 39.2);
-    webNew.classList.toggle('flash', t >= 39.2 && t < 40.5);
-    $('y-count').textContent = t >= 39.2 ? '3 nights in 2026' : '2 nights in 2026';
-    $('sync-h').textContent = t < 41 ? 'Your journal, in your own private Google Sheet.' : 'Phone and desktop stay in sync.';
+    webNew.classList.toggle('hide', t < 34.9);
+    webNew.classList.toggle('flash', t >= 34.9 && t < 36.1);
+    $('y-count').textContent = t >= 34.9 ? '3 nights in 2026' : '2 nights in 2026';
+    $('sync-h').textContent = t < 36.4 ? 'Your journal, in your own private Google Sheet.' : 'Phone and desktop stay in sync.';
 
   }
 
