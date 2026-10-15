@@ -158,8 +158,8 @@ export default function RoutinesScreen() {
         <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: space.md, marginBottom: space.md }}>
           {/* Swaps Bedtime and Morning on this screen only. The data doesn't change. */}
           <Chip label={wide ? '⇄ Swap' : '⇅ Swap'} onPress={swapPhases} />
-          <Chip label={editMode ? 'Done' : 'Edit'} selected={editMode} onPress={() => setEditMode((v) => !v)} />
           {!editMode && <SyncChip />}
+          <Chip label={editMode ? 'Done' : 'Edit'} selected={editMode} onPress={() => setEditMode((v) => !v)} />
         </View>
 
         {!loaded && !error && <ActivityIndicator color={colors.night} style={{ marginBottom: space.md }} />}

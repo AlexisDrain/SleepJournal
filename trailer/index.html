@@ -164,6 +164,7 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
 .note-band b { color: var(--green); font-weight: 700; }
 .pointer { position: absolute; width: 30px; height: 30px; z-index: 6; transition: left .5s ease, top .5s ease, transform .12s; transform-origin: 3px 2px; }
 .pointer.press { transform: scale(.82); }
+.credit { position: absolute; left: 0; right: 0; bottom: 26px; margin: 0; text-align: center; font-size: 14px; line-height: 1.55; color: var(--muted); }
 .flow { position: absolute; font: 600 15px var(--ui); color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -405,6 +406,12 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
             <div><span>Code:</span> github.com/AlexisDrain/SleepJournal</div>
           </div>
         </div>
+        <!-- The music's licence (CC BY 4.0) requires this credit. -->
+        <p class="credit">
+          Music: "Inspired" Kevin MacLeod (incompetech.com)<br>
+          Licensed under Creative Commons: By Attribution 4.0 License<br>
+          http://creativecommons.org/licenses/by/4.0/
+        </p>
       </section>
     </div>
   </div>
@@ -412,10 +419,12 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
   <div class="bar">
     <button id="play" type="button">Pause</button>
     <button id="restart" type="button">Restart</button>
+    <button id="sound" type="button" aria-pressed="false">Sound: off</button>
+    <audio id="music" src="Inspired.mp3" preload="auto"></audio>
     <div class="progress" aria-hidden="true"><i id="prog"></i></div>
     <span class="tip" id="clock">0:00 / 0:54</span>
   </div>
-  <p class="tip">To turn this into a video file: make the window full screen, press Restart, and record it with the Snipping Tool's video mode or Xbox Game Bar (Win + Alt + R).</p>
+  <p class="tip">To turn this into a video file: press Sound so it says on, make the window full screen, press Restart, and record it with Xbox Game Bar (Win + Alt + R), which records the sound too.</p>
 </div>
 
 <script>
@@ -582,6 +591,23 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
   }
   $('play').addEventListener('click', () => { playing = !playing; $('play').textContent = playing ? 'Pause' : 'Play'; });
   $('restart').addEventListener('click', () => { elapsed = 0; playing = true; $('play').textContent = 'Pause'; });
+
+  // The song plays from the trailer's own position, fades in at the start and out over the last 2 seconds,
+  // and starts again when the trailer loops.
+  const music = $('music');
+  let sound = false;
+  $('sound').addEventListener('click', () => {
+    sound = !sound;
+    $('sound').textContent = sound ? 'Sound: on' : 'Sound: off';
+    $('sound').setAttribute('aria-pressed', String(sound));
+    if (!sound) music.pause();
+  });
+  setInterval(() => {
+    if (!sound || !playing) { if (!music.paused) music.pause(); return; }
+    if (Math.abs(music.currentTime - elapsed) > 0.25) music.currentTime = elapsed;
+    music.volume = Math.max(0, Math.min(1, elapsed / 0.5, (LENGTH - elapsed) / 2));
+    if (music.paused) music.play().catch(() => {});
+  }, 100);
   if (reduce) { playing = false; elapsed = SPLASH + 13.5; $('play').textContent = 'Play'; } // start on a still, filled-in Journal
   frame(elapsed);
   requestAnimationFrame(loop);
