@@ -1,0 +1,589 @@
+<title>Sleep Journal Trailer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap">
+<style>
+/* Layout: one 1280×720 stage, scaled to the window, playing five timed scenes on a loop.
+   Single dark look on purpose: it is the app's own palette (the app is dark by design). */
+:root {
+  color-scheme: dark;
+  --bg: #0e1120;      /* app background */
+  --card: #181c33;
+  --line: #262b4a;
+  --chip: #232846;
+  --text: #e8eaf6;
+  --muted: #8a90b2;
+  --night: #9fa8ff;   /* bedtime */
+  --morning: #ffc47a; /* morning */
+  --green: #7be0a8;   /* filled in / anytime */
+  --green-bg: #15241f;
+  --sky: #070912;     /* around the stage */
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --ui: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+}
+html, body { background: var(--sky); color: var(--text); }
+body { font-family: var(--ui); padding-inline: 16px; padding-block: 24px; }
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 14px; }
+.viewport { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; overflow: hidden; border-radius: 14px; background: var(--bg); }
+.stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden;
+  background: radial-gradient(1200px 700px at 78% -10%, #1b2150 0%, var(--bg) 55%); }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.bar button { font: 600 14px var(--ui); color: var(--text); background: var(--chip); border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+.bar button:focus-visible { outline: 2px solid var(--night); outline-offset: 2px; }
+.progress { flex: 1; min-width: 120px; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--night); }
+.tip { color: var(--muted); font-size: 13px; line-height: 1.5; max-width: 70ch; }
+
+/* ---------- scenes ---------- */
+.scene { position: absolute; inset: 0; opacity: 0; transition: opacity .6s ease; pointer-events: none; }
+.scene.on { opacity: 1; }
+.stars { position: absolute; inset: 0; }
+.stars b { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #c9cdf5; opacity: .5; }
+.caption { position: absolute; left: 96px; top: 200px; width: 470px; }
+.eyebrow { font: 700 15px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--night); margin-bottom: 18px; }
+.caption h2 { font: 800 56px/1.04 var(--display); margin: 0 0 22px; text-wrap: balance; letter-spacing: -.01em; }
+.caption p { font-size: 21px; line-height: 1.5; color: var(--muted); margin: 0; }
+.caption p + p { margin-top: 10px; }
+
+/* title + end card */
+.center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; gap: 18px; }
+.mark { width: 120px; height: 120px; }
+.title { font: 800 104px/1 var(--display); letter-spacing: -.02em; margin: 0; }
+.sub { font-size: 26px; color: var(--muted); margin: 0; }
+.pill { display: inline-block; font: 700 18px var(--ui); color: var(--bg); background: var(--green); border-radius: 999px; padding: 8px 20px; }
+.links { display: grid; gap: 8px; font: 600 24px var(--ui); color: var(--text); }
+.links span { color: var(--muted); font-weight: 500; }
+
+/* phone */
+.phone { position: absolute; width: 340px; height: 640px; border-radius: 46px; background: #05060c; padding: 12px; box-shadow: 0 30px 80px #0009, 0 0 0 1px #2c3150; }
+.screen { position: relative; width: 100%; height: 100%; border-radius: 36px; overflow: hidden; background: var(--bg); }
+.notch { position: absolute; top: 10px; left: 50%; width: 96px; height: 26px; margin-left: -48px; border-radius: 14px; background: #05060c; z-index: 3; }
+.app { position: absolute; left: 0; right: 0; top: 0; padding: 50px 14px 70px; transition: transform .9s cubic-bezier(.2,.7,.2,1); }
+.tabs { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; background: var(--card); border-top: 1px solid var(--line); display: flex; justify-content: space-around; align-items: center; z-index: 2; }
+.tabs div { display: grid; justify-items: center; gap: 2px; font-size: 10px; color: var(--muted); }
+.tabs div b { font-size: 17px; font-weight: 400; }
+.tabs .cur { color: var(--text); }
+
+/* app pieces (drawn after the real app) */
+.date { text-align: center; }
+.date strong { display: block; font-size: 15.5px; font-weight: 700; }
+.date small { color: var(--muted); font-size: 12px; }
+.saved { text-align: center; color: var(--muted); font-size: 11px; margin: 6px 0 8px; }
+.chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.chipx { font-size: 11.5px; padding: 5px 10px; border-radius: 999px; background: var(--chip); border: 1px solid var(--line); color: var(--text); transition: all .3s; }
+.chipx.sel { background: var(--night); border-color: var(--night); color: var(--bg); font-weight: 700; }
+.chipx.m.sel { background: var(--morning); border-color: var(--morning); }
+.sec { background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--night); border-radius: 12px; padding: 12px; margin-bottom: 10px; transition: background .5s, border-color .5s; }
+.sec.mo { border-left-color: var(--morning); }
+.sec.done { background: var(--green-bg); border-color: #7be0a855; border-left-color: var(--green); }
+.sech { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+.sech .ic { font-size: 18px; color: var(--night); }
+.sec.mo .sech .ic { color: var(--morning); }
+.sech strong { font-size: 15px; transition: color .5s; }
+.sec.done .sech strong, .sec.done .sech .ic { color: var(--green); }
+.sech small { display: block; color: var(--muted); font-size: 10.5px; font-weight: 400; }
+.row { display: flex; justify-content: space-between; align-items: center; min-height: 34px; font-size: 13.5px; }
+.time { font: 700 13px var(--ui); color: var(--night); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px; min-width: 76px; text-align: center; }
+.sec.mo .time { color: var(--morning); }
+.time.empty { color: var(--muted); font-weight: 500; border-color: transparent; background: none; }
+.lbl { font-size: 10.5px; font-weight: 700; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin: 10px 0 6px; }
+.note { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 12.5px; min-height: 34px; }
+.caret { display: inline-block; width: 1px; height: 13px; background: var(--text); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.scale { display: flex; gap: 4px; }
+.scale span { flex: 1; text-align: center; padding: 8px 0; border-radius: 8px; background: var(--chip); border: 1px solid var(--line); font-weight: 700; font-size: 13px; transition: all .3s; }
+.scale span.sel { background: var(--morning); border-color: var(--morning); color: var(--bg); }
+.scale-l { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
+.scale-l b { color: var(--morning); font-weight: 600; }
+.lat { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* routines */
+.item { display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: 13.5px; transition: color .3s; }
+.box { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--night); display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--bg); transition: background .25s; flex: none; }
+.sec.mo .box { border-color: var(--morning); }
+.sec.any { border-left-color: var(--green); }
+.sec.any .box { border-color: var(--green); }
+.sec.any .sech .ic { color: var(--green); }
+.item.on { color: var(--muted); }
+.item.on .box { background: var(--night); }
+.sec.mo .item.on .box { background: var(--morning); }
+.sec.any .item.on .box { background: var(--green); }
+.tap { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 2px solid #fff9; background: #ffffff22; opacity: 0; pointer-events: none; z-index: 5; transition: left .45s ease, top .45s ease, opacity .25s; }
+.tap.show { opacity: 1; }
+.tap.press { transform: scale(.7); background: #ffffff55; transition: left .45s ease, top .45s ease, opacity .25s, transform .12s; }
+
+/* desktop browser + spreadsheet */
+.browser { position: absolute; border-radius: 12px; overflow: hidden; background: var(--bg); box-shadow: 0 30px 80px #0009, 0 0 0 1px #2c3150; }
+.chrome { height: 34px; background: #151829; display: flex; align-items: center; gap: 7px; padding: 0 12px; }
+.chrome i { width: 10px; height: 10px; border-radius: 50%; background: #2d3254; }
+.chrome span { margin-left: 10px; flex: 1; height: 20px; border-radius: 6px; background: #0e1120; color: var(--muted); font-size: 11px; display: flex; align-items: center; padding: 0 10px; }
+.web { display: flex; height: calc(100% - 34px); }
+.rail { width: 72px; background: var(--card); border-right: 1px solid var(--line); display: grid; align-content: start; gap: 14px; padding-top: 16px; justify-items: center; font-size: 10px; color: var(--muted); }
+.rail div { display: grid; justify-items: center; gap: 2px; }
+.rail .cur { color: var(--text); }
+.rail b { font-size: 16px; font-weight: 400; }
+.pane { flex: 1; padding: 14px 16px; min-width: 0; }
+.pane h4 { margin: 0 0 4px; font-size: 13px; }
+.pane small { color: var(--muted); font-size: 11px; }
+table.sheet { border-collapse: collapse; margin-top: 10px; font-size: 11.5px; width: 100%; }
+table.sheet th, table.sheet td { padding: 6px 8px; border: 1px solid var(--bg); text-align: left; white-space: nowrap; }
+table.sheet th { font-weight: 700; }
+.g { background: #1f3d30; } .gb { background: #14211b; }
+.n { background: #2a3170; } .nb { background: #171b38; }
+.mm { background: #57431d; } .mb { background: #231d12; }
+tr.new td { transition: box-shadow .4s, opacity .5s; }
+tr.new.hide td { opacity: 0; }
+tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
+/* the user's own spreadsheet (a plain light grid, colored like the app's export) */
+.gsheet { position: absolute; width: 360px; border-radius: 12px; overflow: hidden; background: #fff; color: #222; box-shadow: 0 24px 60px #0008; font-size: 11.5px; }
+.gsheet .hd { background: #f1f3f4; padding: 9px 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #dadce0; }
+.gsheet .hd i { width: 14px; height: 18px; border-radius: 2px; background: #2e9e5b; display: inline-block; }
+.gsheet table { border-collapse: collapse; width: 100%; }
+.gsheet th, .gsheet td { border: 1px solid #e0e0e0; padding: 5px 7px; text-align: left; white-space: nowrap; }
+.gsheet .h1 { background: #b7e4c7; } .gsheet .c1 { background: #eaf7ef; }
+.gsheet .h2 { background: #b9c4ff; } .gsheet .c2 { background: #eceffd; }
+.gsheet .h3 { background: #ffd98a; } .gsheet .c3 { background: #fff6e0; }
+.gsheet tr.new td { transition: opacity .5s, box-shadow .4s; }
+.gsheet tr.new.hide td { opacity: 0; }
+.gsheet tr.new.flash td { box-shadow: inset 0 0 0 999px #1a73e822; }
+.packet.back { background: var(--night); box-shadow: 0 0 22px var(--night); }
+.packet { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 22px var(--green); opacity: 0; z-index: 6; }
+.brand { position: absolute; left: 40px; top: 32px; display: flex; align-items: center; gap: 10px; z-index: 8; transition: opacity .6s; }
+.brand svg { width: 30px; height: 30px; }
+.brand strong { font: 800 22px var(--display); }
+.brand span { font: 700 12px var(--ui); color: var(--bg); background: var(--green); border-radius: 999px; padding: 4px 10px; }
+.night { position: absolute; inset: 0; background: #000; text-align: center; opacity: 0; z-index: 7; overflow: hidden; }
+/* the dial's pivot sits 300px below the middle of the screen; each face is 300px from it */
+.dial { position: absolute; left: 640px; top: 660px; width: 0; height: 0; }
+.face { position: absolute; left: 0; top: 0; width: 420px; transform: translate(-50%, -50%) translateY(-300px); }
+.face.under { transform: translate(-50%, -50%) rotate(180deg) translateY(-300px); }
+.face span { display: block; font-size: 64px; line-height: 1; }
+.face p { font: 700 34px var(--display); margin: 12px 0 0; color: var(--text); }
+.note-band { position: absolute; left: 0; right: 0; bottom: 40px; margin: 0; text-align: center; }
+.note-band span { display: inline-block; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 12px 26px; font-size: 18px; color: var(--muted); }
+.note-band b { color: var(--green); font-weight: 700; }
+.pointer { position: absolute; width: 30px; height: 30px; z-index: 6; transition: left .5s ease, top .5s ease, transform .12s; transform-origin: 3px 2px; }
+.pointer.press { transform: scale(.82); }
+.flow { position: absolute; font: 600 15px var(--ui); color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .scene, .app, .sec, .chipx, .scale span, .box, .tap, tr.new td { transition: none !important; }
+  .caret { animation: none; }
+}
+</style>
+
+<div class="wrap">
+  <div class="viewport" id="viewport">
+    <div class="stage" id="stage">
+      <div class="stars" id="stars"></div>
+
+      <!-- Always in the corner (except on the end card), since there is no title screen. -->
+      <div class="brand" id="brand">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><path d="M74 18a44 44 0 1 0 28 72A38 38 0 0 1 74 18Z" fill="#9fa8ff"/><path d="M92 26l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#ffc47a"/></svg>
+        <strong>Sleep Journal</strong><span>Open Source</span>
+      </div>
+
+      <!-- 0. Title card (2 seconds) -->
+      <section class="scene" id="s-title" aria-label="Title">
+        <div class="center">
+          <svg class="mark" viewBox="0 0 120 120" aria-hidden="true">
+            <path d="M74 18a44 44 0 1 0 28 72A38 38 0 0 1 74 18Z" fill="#9fa8ff"/>
+            <path d="M92 26l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#ffc47a"/>
+            <path d="M104 56l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#e8eaf6"/>
+          </svg>
+          <h1 class="title">Sleep Journal</h1>
+          <p class="sub">A one-minute sleep diary.</p>
+          <span class="pill">Free &amp; Open Source</span>
+        </div>
+      </section>
+
+      <!-- 1. Journal -->
+      <section class="scene" id="s-journal" aria-label="The Journal">
+        <div class="caption">
+          <div class="eyebrow">The Journal</div>
+          <h2>Bedtime, then morning.</h2>
+          <p>Note when you got in bed. In the morning, when you woke up and how rested you feel.</p>
+          <p>It saves as you type.</p>
+        </div>
+        <div class="phone" style="left: 760px; top: 40px">
+          <div class="screen">
+            <div class="notch"></div>
+            <div class="app" id="j-app">
+              <div class="date"><strong>Tuesday night → Wednesday morning</strong><small>Oct 13, 2026 ▾</small></div>
+              <div class="saved" id="j-saved">Changes save automatically</div>
+              <div class="chips"><span class="chipx">⇅ Swap</span><span class="chipx">One question at a time</span><span class="chipx">⟳ Sync</span></div>
+              <div class="sec" id="j-bed">
+                <div class="sech"><span class="ic">☾</span><div><strong id="j-bed-t">Bedtime</strong><small>until 3 AM</small></div></div>
+                <div class="row">Got in bed <span class="time empty" id="j-inbed">Set to now</span></div>
+                <div class="row">Trying to sleep <span class="time empty" id="j-tried">Set to now</span></div>
+                <div class="lbl">Note</div>
+                <div class="note" id="j-note"></div>
+              </div>
+              <div class="sec mo" id="j-mor">
+                <div class="sech"><span class="ic">☀</span><div><strong id="j-mor-t">Morning</strong><small>until 3 PM</small></div></div>
+                <div class="row">Woke up <span class="time empty" id="j-woke">Set to now</span></div>
+                <div class="row">Started the day <span class="time empty" id="j-start">Set to now</span></div>
+                <div class="lbl">Took to fall asleep</div>
+                <div class="lat"><span class="chipx m" id="j-l0">15m</span><span class="chipx m">30m</span><span class="chipx m">45m</span><span class="chipx m">1h</span><span class="chipx m">2h</span><span class="chipx m">3h+</span></div>
+                <div class="lbl">How rested do you feel?</div>
+                <div class="scale" id="j-scale"><span>1</span><span>2</span><span class="sel">3</span><span>4</span><span>5</span></div>
+                <div class="scale-l"><span>Exhausted</span><b id="j-rested">Okay</b><span>Well rested</span></div>
+              </div>
+            </div>
+            <div class="tabs"><div class="cur"><b>☾</b>Journal</div><div><b>✓</b>Routines</div><div><b>▦</b>Sheet</div><div><b>⚙</b>Settings</div></div>
+            <div class="tap" id="j-tap"></div>
+          </div>
+        </div>
+        <div class="night" id="j-night">
+          <!-- A dial turning half a turn: the moon and "Sleeping…" sweep down and away as the sun rises into place. -->
+          <div class="dial" id="j-dial">
+            <div class="face"><span style="color: var(--night)">☾</span><p>Sleeping…</p></div>
+            <div class="face under"><span style="color: var(--morning)">☀</span><p>Next morning</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Routines -->
+      <section class="scene" id="s-routines" aria-label="Routines">
+        <div class="caption">
+          <div class="eyebrow" style="color: var(--green)">Routines</div>
+          <h2>Tick off your routines.</h2>
+          <p>A bedtime list, a morning list, and one for anytime. Your items, your order.</p>
+        </div>
+        <div class="phone" style="left: 760px; top: 40px">
+          <div class="screen">
+            <div class="notch"></div>
+            <div class="app">
+              <div class="date"><strong>Tuesday night → Wednesday morning</strong><small>Oct 13, 2026 ▾</small></div>
+              <div class="saved">Ticks save automatically</div>
+              <div class="chips"><span class="chipx">⇅ Swap</span><span class="chipx">Edit</span><span class="chipx">⟳ Sync</span></div>
+              <div class="sec">
+                <div class="sech"><span class="ic">☾</span><div><strong>Bedtime</strong><small>until 3 AM</small></div></div>
+                <div class="item" data-t="15.5"><span class="box">✓</span>Brush teeth</div>
+                <div class="item" data-t="16.2"><span class="box">✓</span>Take meds / vitamins</div>
+                <div class="item" data-t="16.9"><span class="box">✓</span>Phone on charger</div>
+              </div>
+              <div class="sec mo">
+                <div class="sech"><span class="ic">☀</span><div><strong>Morning</strong><small>until 3 PM</small></div></div>
+                <div class="item" data-t="17.9"><span class="box">✓</span>Drink water</div>
+                <div class="item" data-t="18.6"><span class="box">✓</span>Get some sunlight</div>
+              </div>
+              <div class="sec any">
+                <div class="sech"><span class="ic">✓</span><div><strong>Anytime</strong><small>Wednesday, Oct 14 · all day</small></div></div>
+                <div class="item" data-t="19.8"><span class="box">✓</span>Exercise</div>
+                <div class="item"><span class="box">✓</span>Read 20 pages</div>
+              </div>
+            </div>
+            <div class="tabs"><div><b>☾</b>Journal</div><div class="cur"><b>✓</b>Routines</div><div><b>▦</b>Sheet</div><div><b>⚙</b>Settings</div></div>
+            <div class="tap" id="r-tap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. On a computer -->
+      <section class="scene" id="s-desk" aria-label="In a browser on your computer">
+        <div style="position: absolute; left: 96px; right: 96px; top: 34px; text-align: center">
+          <div class="eyebrow">On your computer</div>
+          <h2 style="font: 800 44px/1.1 var(--display); margin: 0">The same Journal and Routines, in any browser.</h2>
+        </div>
+        <div class="browser" style="left: 140px; top: 170px; width: 1000px; height: 490px">
+          <div class="chrome"><i></i><i></i><i></i><span>sleep-journal.expo.app</span></div>
+          <div class="web">
+            <div class="rail">
+              <div id="d-rail-j" class="cur"><b>☾</b>Journal</div><div id="d-rail-r"><b>✓</b>Routines</div><div><b>▦</b>Sheet</div><div><b>⚙</b>Settings</div>
+            </div>
+            <div class="pane" style="padding: 18px 26px">
+              <div class="date"><strong>Tuesday night → Wednesday morning</strong><small>Oct 13, 2026 ▾</small></div>
+              <div class="saved" id="d-saved">Saved ✓</div>
+              <div id="d-journal" style="display: flex; gap: 14px; align-items: flex-start">
+                <div class="sec done" style="flex: 1">
+                  <div class="sech"><span class="ic">☾</span><div><strong>Bedtime ✓</strong><small>until 3 AM</small></div></div>
+                  <div class="row">Got in bed <span class="time">11:40 PM</span></div>
+                  <div class="row">Trying to sleep <span class="time">11:55 PM</span></div>
+                  <div class="lbl">Note</div>
+                  <div class="note">Early flight tomorrow ✈️</div>
+                </div>
+                <div class="sec mo" id="d-mor" style="flex: 1">
+                  <div class="sech"><span class="ic">☀</span><div><strong id="d-mor-t">Morning</strong><small>until 3 PM</small></div></div>
+                  <div class="row">Woke up <span class="time empty" id="d-woke">Set to now</span></div>
+                  <div class="row">Started the day <span class="time empty" id="d-start">Set to now</span></div>
+                  <div class="lbl">How rested do you feel?</div>
+                  <div class="scale" id="d-scale"><span>1</span><span>2</span><span class="sel">3</span><span>4</span><span>5</span></div>
+                </div>
+              </div>
+              <div id="d-routines" style="display: none; gap: 14px; align-items: flex-start">
+                <div class="sec" style="flex: 1">
+                  <div class="sech"><span class="ic">☾</span><div><strong>Bedtime</strong><small>until 3 AM</small></div></div>
+                  <div class="item on"><span class="box">✓</span>Brush teeth</div>
+                  <div class="item on"><span class="box">✓</span>Phone on charger</div>
+                </div>
+                <div class="sec mo" style="flex: 1">
+                  <div class="sech"><span class="ic">☀</span><div><strong>Morning</strong><small>until 3 PM</small></div></div>
+                  <div class="item" id="d-water"><span class="box">✓</span>Drink water</div>
+                  <div class="item"><span class="box">✓</span>Get some sunlight</div>
+                </div>
+                <div class="sec any" style="flex: 1">
+                  <div class="sech"><span class="ic">✓</span><div><strong>Anytime</strong><small>Wednesday, Oct 14 · all day</small></div></div>
+                  <div class="item" id="d-exercise"><span class="box">✓</span>Exercise</div>
+                  <div class="item"><span class="box">✓</span>Read 20 pages</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <svg class="pointer" id="d-ptr" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 2l15 11-6.5 1.2L15 21l-3 1.4-3.5-6.8L3 20z" fill="#fff" stroke="#0e1120" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      </section>
+
+      <!-- 4. Sync -->
+      <section class="scene" id="s-sync" aria-label="Sync between phone and desktop">
+        <div style="position: absolute; left: 96px; right: 96px; top: 34px; text-align: center">
+          <div class="eyebrow" style="color: var(--morning)">Phone and desktop</div>
+          <h2 style="font: 800 44px/1.1 var(--display); margin: 0" id="sync-h">Your journal, in your own private Google Sheet.</h2>
+        </div>
+        <div class="phone" style="left: 90px; top: 175px; transform: scale(.56); transform-origin: 0 0">
+          <div class="screen">
+            <div class="notch"></div>
+            <div class="app">
+              <div class="date"><strong>Tuesday night → Wednesday morning</strong><small>Oct 13, 2026 ▾</small></div>
+              <div class="saved">Saved ✓</div>
+              <div class="chips"><span class="chipx">⇅ Swap</span><span class="chipx">One question at a time</span><span class="chipx" id="y-sync">⟳ Sync</span></div>
+              <div class="sec done"><div class="sech"><span class="ic">☾</span><div><strong>Bedtime ✓</strong><small>in bed 11:40 PM · trying 11:55 PM</small></div></div></div>
+              <div class="sec mo done"><div class="sech"><span class="ic">☀</span><div><strong>Morning ✓</strong><small>woke 7:30 AM · Rested · 15m to fall asleep</small></div></div></div>
+            </div>
+            <div class="tabs"><div class="cur"><b>☾</b>Journal</div><div><b>✓</b>Routines</div><div><b>▦</b>Sheet</div><div><b>⚙</b>Settings</div></div>
+            <div class="tap" id="y-tap"></div>
+          </div>
+        </div>
+
+        <div class="gsheet" style="left: 330px; top: 270px" id="y-gs">
+          <div class="hd"><i></i>My Sleep Journal · 2026</div>
+          <table>
+            <tr><th class="h1">Night of</th><th class="h2">In bed</th><th class="h3">Woke up</th><th class="h3">Rested</th></tr>
+            <tr><td class="c1">10-11-2026</td><td class="c2">11:15 PM</td><td class="c3">7:05 AM</td><td class="c3">3</td></tr>
+            <tr><td class="c1">10-12-2026</td><td class="c2">12:10 AM</td><td class="c3">8:20 AM</td><td class="c3">2</td></tr>
+            <tr class="new hide" id="y-gs-new"><td class="c1">10-13-2026</td><td class="c2">11:40 PM</td><td class="c3">7:30 AM</td><td class="c3">4</td></tr>
+          </table>
+        </div>
+
+        <div class="browser" style="left: 730px; top: 185px; width: 500px; height: 340px">
+          <div class="chrome"><i></i><i></i><i></i><span>sleep-journal.expo.app/sheet</span></div>
+          <div class="web">
+            <div class="rail"><div><b>☾</b>Journal</div><div><b>✓</b>Routines</div><div class="cur"><b>▦</b>Sheet</div><div><b>⚙</b>Settings</div></div>
+            <div class="pane">
+              <h4>Sheet</h4><small id="y-count">2 nights in 2026</small>
+              <table class="sheet">
+                <tr><th class="g">Night of</th><th class="n">In bed</th><th class="mm">Woke up</th></tr>
+                <tr><td class="gb">10-11-2026</td><td class="nb">11:15 PM</td><td class="mb">7:05 AM</td></tr>
+                <tr><td class="gb">10-12-2026</td><td class="nb">12:10 AM</td><td class="mb">8:20 AM</td></tr>
+                <tr class="new hide" id="y-web-new"><td class="gb">10-13-2026</td><td class="nb">11:40 PM</td><td class="mb">7:30 AM</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="flow" style="left: 90px; top: 548px; width: 190px; text-align: center">Phone</div>
+        <div class="flow" style="left: 330px; top: 440px; width: 360px; text-align: center">Your Google Sheet</div>
+        <div class="flow" style="left: 730px; top: 540px; width: 500px; text-align: center">Desktop browser</div>
+        <div class="packet" id="y-packet"></div>
+        <div class="packet back" id="y-packet2"></div>
+        <p class="note-band">
+          <span><b>Private to you.</b> No account, no Google sign-in inside the app. Edit in the sheet and it syncs back.</span>
+        </p>
+      </section>
+
+      <!-- 5. End card -->
+      <section class="scene" id="s-end" aria-label="End">
+        <div class="center">
+          <svg class="mark" viewBox="0 0 120 120" aria-hidden="true">
+            <path d="M74 18a44 44 0 1 0 28 72A38 38 0 0 1 74 18Z" fill="#9fa8ff"/>
+            <path d="M92 26l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#ffc47a"/>
+            <path d="M104 56l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#e8eaf6"/>
+          </svg>
+          <h1 class="title" style="font-size: 84px">Sleep Journal</h1>
+          <span class="pill">Free &amp; Open Source · No account · No ads · No tracking</span>
+          <div class="links">
+            <div><span>Try it:</span> sleep-journal.expo.app</div>
+            <div><span>Code:</span> github.com/AlexisDrain/SleepJournal</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="bar">
+    <button id="play" type="button">Pause</button>
+    <button id="restart" type="button">Restart</button>
+    <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+    <span class="tip" id="clock">0:00 / 0:54</span>
+  </div>
+  <p class="tip">To turn this into a video file: make the window full screen, press Restart, and record it with the Snipping Tool's video mode or Xbox Game Bar (Win + Alt + R).</p>
+</div>
+
+<script>
+(() => {
+  const SPLASH = 2;                                // the title card, before everything else
+  const BODY = 52.5;                               // the scenes after it
+  const LENGTH = SPLASH + BODY;                    // seconds, then it loops
+  // Opens straight on the Journal: no title screen to click away from.
+  const SCENES = [['s-journal', 0, 14.5], ['s-routines', 14.5, 24.5], ['s-desk', 24.5, 33.5], ['s-sync', 33.5, 46.5], ['s-end', 46.5, BODY]];
+  const $ = (id) => document.getElementById(id);
+  const stage = $('stage'), viewport = $('viewport');
+
+  // Scale the 1280×720 stage to the window.
+  const fit = () => { stage.style.transform = `scale(${viewport.clientWidth / 1280})`; };
+  new ResizeObserver(fit).observe(viewport);
+  fit();
+
+  // A few fixed stars.
+  const stars = $('stars');
+  for (let i = 0; i < 70; i++) {
+    const b = document.createElement('b');
+    const x = (i * 97.3) % 1280, y = (i * 53.7) % 720;
+    b.style.left = x + 'px'; b.style.top = y + 'px'; b.style.opacity = (0.15 + ((i * 37) % 50) / 100).toFixed(2);
+    stars.appendChild(b);
+  }
+
+  // Everything on screen is a pure function of the time, so pause and restart are exact.
+  const after = (t, at) => t >= at;
+  const typed = (text, t, from, to) => text.slice(0, Math.round(Math.max(0, Math.min(1, (t - from) / (to - from))) * [...text].length));
+  const setTime = (el, t, at, value) => {
+    const on = after(t, at);
+    el.textContent = on ? value : 'Set to now';
+    el.classList.toggle('empty', !on);
+  };
+  /**
+   * The finger: for each [time, element], it moves onto the element a moment before `time`,
+   * presses at `time` (when the change happens) and lifts off. Positions are measured from the
+   * real elements, so it lands where the change is even while the screen scrolls.
+   */
+  const tapAt = (tap, t, moves) => {
+    const m = moves.find(([at]) => t >= at - 0.6 && t < at + 0.3);
+    tap.classList.toggle('show', !!m);
+    tap.classList.toggle('press', !!m && t >= m[0] - 0.08 && t < m[0] + 0.15);
+    if (!m) return;
+    const scale = viewport.clientWidth / 1280;
+    const box = tap.parentElement.getBoundingClientRect(), r = m[1].getBoundingClientRect();
+    // the phone in the sync scene is itself drawn at 80%: measure in its own units
+    const inner = tap.parentElement.offsetWidth / (box.width / scale);
+    tap.style.left = ((r.left + r.width / 2 - box.left) / scale) * inner + 'px';
+    tap.style.top = ((r.top + r.height / 2 - box.top) / scale) * inner + 'px';
+  };
+  /** The mouse pointer: always visible in its scene, gliding to each target and clicking at its time. */
+  const pointerAt = (ptr, t, moves) => {
+    const m = [...moves].reverse().find(([at]) => t >= at - 0.6) ?? moves[0];
+    ptr.classList.toggle('press', t >= m[0] - 0.08 && t < m[0] + 0.15);
+    const scale = viewport.clientWidth / 1280;
+    const box = ptr.parentElement.getBoundingClientRect(), r = m[1].getBoundingClientRect();
+    ptr.style.left = (r.left + r.width / 2 - box.left) / scale - 3 + 'px';
+    ptr.style.top = (r.top + r.height / 2 - box.top) / scale - 2 + 'px';
+  };
+  const routineItems = [...document.querySelectorAll('#s-routines .item[data-t]')];
+
+  /** One moment of the video: the title card, then the scenes on their own clock (t − SPLASH). */
+  function frame(t) {
+    scenes(t - SPLASH);
+    $('s-title').classList.toggle('on', t < SPLASH);
+    $('prog').style.width = (t / LENGTH * 100) + '%';
+    const s = (x) => `${(x / 60) | 0}:${String((x % 60) | 0).padStart(2, '0')}`;
+    $('clock').textContent = `${s(t)} / ${s(LENGTH)}`;
+  }
+
+  function scenes(t) {
+    for (const [id, a, b] of SCENES) $(id).classList.toggle('on', t >= a && t < b);
+    $('brand').style.opacity = t < 46.5 ? 1 : 0;
+
+    // Journal
+    setTime($('j-inbed'), t, 1.1, '11:40 PM');
+    setTime($('j-tried'), t, 2.1, '11:55 PM');
+    const note = typed('Early flight tomorrow ✈️', t, 2.9, 4.5);
+    $('j-note').innerHTML = '';
+    $('j-note').append(note || '');
+    if (t >= 2.7 && t < 4.9) { const c = document.createElement('span'); c.className = 'caret'; $('j-note').append(c); }
+    const bedDone = after(t, 5.1);
+    $('j-bed').classList.toggle('done', bedDone);
+    $('j-bed-t').textContent = bedDone ? 'Bedtime ✓' : 'Bedtime';
+    // The night passes: fade to black, the moon turns into the sun, fade back in on the morning.
+    const fadeIn = Math.min(1, Math.max(0, (t - 6.0) / 0.6)), fadeOut = Math.min(1, Math.max(0, (8.4 - t) / 0.6));
+    $('j-night').style.opacity = t >= 6.0 && t < 8.4 ? Math.min(fadeIn, fadeOut) : 0;
+    const turn = Math.min(1, Math.max(0, (t - 6.85) / 0.75));
+    const eased = turn < 0.5 ? 4 * turn ** 3 : 1 - (-2 * turn + 2) ** 3 / 2; // slow, fast, slow
+    $('j-dial').style.transform = `rotate(${180 * eased}deg)`;
+    $('j-app').style.transform = after(t, 6.8) ? 'translateY(-200px)' : 'none';
+    setTime($('j-woke'), t, 9.0, '7:30 AM');
+    setTime($('j-start'), t, 9.9, '7:45 AM');
+    $('j-l0').classList.toggle('sel', after(t, 10.8));
+    const rested = after(t, 11.8) ? 4 : 3;
+    [...$('j-scale').children].forEach((s, i) => s.classList.toggle('sel', i + 1 === rested));
+    $('j-rested').textContent = rested === 4 ? 'Rested' : 'Okay';
+    const morDone = after(t, 12.8);
+    $('j-mor').classList.toggle('done', morDone);
+    $('j-mor-t').textContent = morDone ? 'Morning ✓' : 'Morning';
+    $('j-saved').textContent = t < 1.1 ? 'Changes save automatically' : ((t * 2) | 0) % 3 === 0 && t < 13.5 ? 'Saving…' : 'Saved ✓';
+    tapAt($('j-tap'), t, [[1.1, $('j-inbed')], [2.1, $('j-tried')], [2.9, $('j-note')], [9.0, $('j-woke')],
+      [9.9, $('j-start')], [10.8, $('j-l0')], [11.8, $('j-scale').children[3]]]);
+
+    // Routines
+    routineItems.forEach((el) => el.classList.toggle('on', t >= +el.dataset.t));
+    tapAt($('r-tap'), t, routineItems.map((el) => [+el.dataset.t, el.querySelector('.box')]));
+
+    // On a computer: fill in the morning with the mouse, then tick routines.
+    setTime($('d-woke'), t, 25.6, '7:30 AM');
+    setTime($('d-start'), t, 26.5, '7:45 AM');
+    const dRested = after(t, 27.4) ? 4 : 3;
+    [...$('d-scale').children].forEach((el, i) => el.classList.toggle('sel', i + 1 === dRested));
+    const dDone = after(t, 27.8);
+    $('d-mor').classList.toggle('done', dDone);
+    $('d-mor-t').textContent = dDone ? 'Morning ✓' : 'Morning';
+    const onRoutines = after(t, 28.6);
+    $('d-journal').style.display = onRoutines ? 'none' : 'flex';
+    $('d-routines').style.display = onRoutines ? 'flex' : 'none';
+    $('d-rail-j').classList.toggle('cur', !onRoutines);
+    $('d-rail-r').classList.toggle('cur', onRoutines);
+    $('d-saved').textContent = onRoutines ? 'Ticks save automatically' : 'Saved ✓';
+    $('d-water').classList.toggle('on', after(t, 29.7));
+    $('d-exercise').classList.toggle('on', after(t, 30.7));
+    pointerAt($('d-ptr'), t, [[25.6, $('d-woke')], [26.5, $('d-start')], [27.4, $('d-scale').children[3]],
+      [28.6, $('d-rail-r')], [29.7, $('d-water').querySelector('.box')], [30.7, $('d-exercise').querySelector('.box')]]);
+
+    // Sync
+    const syncing = t >= 35.7 && t < 40.1, synced = t >= 40.1;
+    $('y-sync').textContent = synced ? 'Synced ✓' : syncing ? 'Syncing…' : '⟳ Sync';
+    $('y-sync').classList.toggle('sel', syncing);
+    tapAt($('y-tap'), t, [[35.7, $('y-sync')]]);
+    const p = $('y-packet');
+    const lerp = (a, b, k) => a + (b - a) * k;
+    let pk = null;
+    if (t >= 36.0 && t < 37.1) { const k = (t - 36.0) / 1.1; pk = [lerp(285, 330, k), lerp(330, 330 - 60 * Math.sin(Math.PI * k), k)]; }
+    if (t >= 38.1 && t < 39.2) { const k = (t - 38.1) / 1.1; pk = [lerp(690, 760, k), lerp(330, 330 - 60 * Math.sin(Math.PI * k), k)]; }
+    p.style.opacity = pk ? 1 : 0;
+    if (pk) { p.style.left = pk[0] + 'px'; p.style.top = pk[1] + 'px'; }
+    // And back the other way: an edit made on the desktop goes up to the sheet too (blue, arcing below).
+    const p2 = $('y-packet2');
+    const back = t >= 40.6 && t < 41.7;
+    p2.style.opacity = back ? 1 : 0;
+    if (back) { const k = (t - 40.6) / 1.1; p2.style.left = lerp(760, 690, k) + 'px'; p2.style.top = lerp(360, 360 + 60 * Math.sin(Math.PI * k), k) + 'px'; }
+    const gsNew = $('y-gs-new');
+    gsNew.classList.toggle('hide', t < 37.1);
+    gsNew.classList.toggle('flash', (t >= 37.1 && t < 38.3) || (t >= 41.7 && t < 42.8));
+    const webNew = $('y-web-new');
+    webNew.classList.toggle('hide', t < 39.2);
+    webNew.classList.toggle('flash', t >= 39.2 && t < 40.5);
+    $('y-count').textContent = t >= 39.2 ? '3 nights in 2026' : '2 nights in 2026';
+    $('sync-h').textContent = t < 41 ? 'Your journal, in your own private Google Sheet.' : 'Phone and desktop stay in sync.';
+
+  }
+
+  let elapsed = 0, last = performance.now(), playing = true;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function loop(now) {
+    if (playing) elapsed = (elapsed + (now - last) / 1000) % LENGTH;
+    last = now;
+    frame(elapsed);
+    requestAnimationFrame(loop);
+  }
+  $('play').addEventListener('click', () => { playing = !playing; $('play').textContent = playing ? 'Pause' : 'Play'; });
+  $('restart').addEventListener('click', () => { elapsed = 0; playing = true; $('play').textContent = 'Pause'; });
+  if (reduce) { playing = false; elapsed = SPLASH + 13.5; $('play').textContent = 'Play'; } // start on a still, filled-in Journal
+  frame(elapsed);
+  requestAnimationFrame(loop);
+})();
+</script>

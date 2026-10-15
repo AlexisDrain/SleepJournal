@@ -7,6 +7,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } fr
 import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { CalendarSheet } from '@/components/CalendarSheet';
 import { Panel } from '@/components/Panel';
+import { SyncChip } from '@/components/SyncChip';
 import { TagManager } from '@/components/TagManager';
 import { LatencyPicker, NightSwitcher, RESTED_LABELS, RestedScale, TagPicker } from '@/components/inputs';
 import { NapsCard } from '@/components/NapsCard';
@@ -174,6 +175,7 @@ export default function JournalScreen() {
             {/* Centered under the date, like Swap / Edit on the Routines tab. */}
             <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: space.md, marginBottom: space.md }}>
               {!stepPhase && <Chip label={wide ? '⇄ Swap' : '⇅ Swap'} onPress={swapPhases} />}
+              <SyncChip />
               <Chip label={stepPhase ? 'Show everything' : 'One question at a time'}
                 onPress={() => {
                   if (stepPhase) return chooseMode('all');
@@ -265,6 +267,17 @@ interface Step {
   body: ReactNode;
   /** On the full page, hold this back until the step before it is answered. */
   waitsForPrevious?: boolean;
+  /** Shown under the body when something needs a second look (e.g. times in the wrong order). */
+  after?: ReactNode;
+}
+
+/** A red-edged note under a time that doesn't fit with the one before it. */
+function TimeWarning({ children }: { children: ReactNode }) {
+  return (
+    <View style={{ backgroundColor: colors.bg, borderRadius: 8, borderWidth: 1, borderColor: colors.danger + '88', padding: space.md }}>
+      <Text style={{ color: colors.text }}>{children}</Text>
+    </View>
+  );
 }
 
 function bedtimeSteps({ nightOf, draft, usual }: FieldProps): Step[] {
@@ -285,6 +298,12 @@ function bedtimeSteps({ nightOf, draft, usual }: FieldProps): Step[] {
       body: <TimeField label="Trying to sleep" nightOf={nightOf} phase="bedtime" accent={accent}
         usual={inBed ? clockOf(inBed) : usual.triedSleepAt}
         value={tried} onChange={(v) => draft.set('triedSleepAt', v)} />,
+      after: inBed && tried && Date.parse(inBed) > Date.parse(tried) && (
+        <TimeWarning>
+          Got in bed ({formatClock(inBed)}) is after you started trying to sleep ({formatClock(tried)}). Check the times
+          and AM / PM.
+        </TimeWarning>
+      ),
     },
     {
       id: 'note',
@@ -336,6 +355,12 @@ function morningSteps({ nightOf, draft, rested, usual }: FieldProps): Step[] {
       body: <TimeField label="Started the day" nightOf={nightOf} phase="morning" accent={accent}
         usual={woke ? clockOf(woke) : usual.dayStartedAt}
         value={started} onChange={(v) => draft.set('dayStartedAt', v)} />,
+      after: woke && started && Date.parse(started) < Date.parse(woke) && (
+        <TimeWarning>
+          Started the day ({formatClock(started)}) is before you woke up ({formatClock(woke)}). Check the times
+          and AM / PM.
+        </TimeWarning>
+      ),
     },
     {
       id: 'note',
@@ -396,7 +421,7 @@ function AllSteps({ steps }: { steps: Step[] }) {
       {steps.filter((s) => !s.waitsForPrevious).map((s) => (
         <Fragment key={s.id}>
           {s.label && <Label>{s.label}</Label>}
-          {s.body}
+          {s.body}{s.after || null}
         </Fragment>
       ))}
     </>
@@ -425,7 +450,7 @@ function StepByStep({ phase, steps, onDone }: { phase: Phase; steps: Step[]; onD
         ))}
       </View>
       <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>{step.question}</Text>
-      <View style={{ gap: space.md }}>{step.body}</View>
+      <View style={{ gap: space.md }}>{step.body}{step.after || null}</View>
       <View style={{ flexDirection: 'row', gap: space.md }}>
         {index > 0 && (
           <View style={{ flex: 1 }}>
@@ -525,7 +550,7 @@ function Label({ children }: { children: ReactNode }) {
 /** One line shown when a section is folded. */
 function summary(phase: Phase, e: Entry | null) {
   if (phase === 'bedtime') {
-    if (!e?.inBedAt && !e?.triedSleepAt) return 'Not filled in yet';
+    if (!e?.inBedAt && !e?.triedSleepAt) return 'Fill this before going to sleep';
     return [
       e?.inBedAt && `in bed ${formatClock(e.inBedAt)}`,
       e?.triedSleepAt && `trying ${formatClock(e.triedSleepAt)}`,

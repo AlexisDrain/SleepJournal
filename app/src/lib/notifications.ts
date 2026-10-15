@@ -86,8 +86,20 @@ export async function clearReminder(phase: Phase): Promise<void> {
   await savePrefs(prefs);
 }
 
-/** Re-plan the next week of reminders, skipping check-ins that are already filled. */
-export async function syncReminders(): Promise<void> {
+let planning: Promise<void> = Promise.resolve();
+
+/**
+ * Re-plan the next week of reminders, skipping check-ins that are already filled.
+ * Runs one at a time: two overlapping runs (say, on launch and right after a save) could
+ * otherwise interleave, and the older one would put back a reminder the newer one had dropped.
+ */
+export function syncReminders(): Promise<void> {
+  const run = planning.then(planReminders, planReminders);
+  planning = run.catch(() => {});
+  return run;
+}
+
+async function planReminders(): Promise<void> {
   const prefs = await getReminders();
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   for (const n of scheduled) {

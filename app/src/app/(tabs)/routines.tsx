@@ -12,6 +12,7 @@ import { NightSwitcher, Routine } from '@/components/inputs';
 import { KIND_LABEL, RoutineItemEditor } from '@/components/RoutineItemEditor';
 import { SwipeRow } from '@/components/SwipeRow';
 import { TagManager } from '@/components/TagManager';
+import { SyncChip } from '@/components/SyncChip';
 import { Button, Card, Chip, ErrorBox, Input, Muted, Row, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
@@ -158,6 +159,7 @@ export default function RoutinesScreen() {
           {/* Swaps Bedtime and Morning on this screen only. The data doesn't change. */}
           <Chip label={wide ? '⇄ Swap' : '⇅ Swap'} onPress={swapPhases} />
           <Chip label={editMode ? 'Done' : 'Edit'} selected={editMode} onPress={() => setEditMode((v) => !v)} />
+          {!editMode && <SyncChip />}
         </View>
 
         {!loaded && !error && <ActivityIndicator color={colors.night} style={{ marginBottom: space.md }} />}

@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { requestSync } from '@/db/sync';
+import { onPulled, requestSync } from '@/db/sync';
 import { syncReminders, useReminderTap } from '@/lib/notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colors } from '@/lib/theme';
@@ -20,6 +20,8 @@ export default function RootLayout() {
     if (!welcomeSeen) return;
     syncReminders().catch(() => {});
     requestSync(0); // pick up changes from the Google Sheet, if connected
+    // A check-in filled on another device arrives through the sheet: drop its reminder here too.
+    return onPulled(() => void syncReminders().catch(() => {}));
   }, [welcomeSeen]);
 
   if (welcomeSeen === null) return null; // reading the flag from storage (a few ms)
