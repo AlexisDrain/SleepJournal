@@ -13,7 +13,7 @@ export const KIND_LABEL: Record<RoutineItem['kind'], string> = {
   number: '# number',
   text: 'Aa note',
 };
-const PHASE_COLOR: Record<RoutinePhase, string> = { bedtime: colors.night, morning: colors.morning, anytime: colors.success };
+const PHASE_COLOR: Record<RoutinePhase, string> = { get bedtime() { return colors.night; }, get morning() { return colors.morning; }, get anytime() { return colors.success; } };
 
 /** Bottom sheet to rename a routine item, change what it records, move it, or hide it. */
 export function RoutineItemEditor({ item, onClose, onSaved }: {

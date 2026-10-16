@@ -4,11 +4,14 @@ import { Linking, ScrollView, Switch, Text, View } from 'react-native';
 import { ExportSheet } from '@/components/ExportSheet';
 import { GoogleSheetCard } from '@/components/GoogleSheetCard';
 import { TimePicker } from '@/components/TimeField';
-import { Button, Card, ErrorBox, Muted, Row, styles } from '@/components/ui';
+import { Button, Card, Chip, ErrorBox, Muted, Row, styles } from '@/components/ui';
 import { pickAndImportCsv } from '@/db/csv';
 import buildInfo from '@/lib/buildInfo.json';
 import { requestSync, resendAllNights } from '@/db/sync';
 import { setHour24, useHour24 } from '@/lib/clockFormat';
+import { DAY_ENDS, DAY_STARTS, setDisplayMode, useDisplayMode, type DisplayMode } from '@/lib/displayMode';
+import { formatHour } from '@/lib/clockFormat';
+import { useThemeName } from '@/lib/displayMode';
 import { REPO_URL } from '@/lib/links';
 import type { Phase } from '@/lib/types';
 import { clearReminder, ensurePermission, getReminders, remindersSupported, setReminder, type Reminder } from '@/lib/notifications';
@@ -21,14 +24,17 @@ const DEFAULT_REMINDER: Record<Phase, Reminder> = {
   morning: { phase: 'morning', hour: 10, minute: 0 },
 };
 const PHASE_NAME: Record<Phase, string> = { bedtime: 'Bedtime', morning: 'Morning' };
-const PHASE_COLOR: Record<Phase, string> = { bedtime: colors.night, morning: colors.morning };
+const DISPLAY_MODES: [DisplayMode, string][] = [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Light by day, dark at night']];
+const PHASE_COLOR: Record<Phase, string> = { get bedtime() { return colors.night; }, get morning() { return colors.morning; } };
 
 export default function SettingsScreen() {
+  useThemeName(); // redraw when the display changes (dark / light)
   const [error, setError] = useState<string | null>(null);
   const [reminders, setReminders] = useState<Partial<Record<Phase, Reminder>>>({});
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const hour24 = useHour24();
+  const display = useDisplayMode();
 
   const load = useCallback(async () => {
     setError(null);
@@ -60,11 +66,24 @@ export default function SettingsScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={[styles.scroll, page(NARROW_PAGE)]}>
       {error && <ErrorBox message={error} onRetry={load} />}
 
-      {remindersSupported && <Card title="Reminders">
+      <Card title="Display">
+        <View style={styles.chips}>
+          {DISPLAY_MODES.map(([m, label]) => (
+            <Chip key={m} label={label} selected={display === m} onPress={() => setDisplayMode(m).catch((e) => setError((e as Error).message))} />
+          ))}
+        </View>
+        <Muted>
+          {display === 'auto'
+            ? `Light from ${formatHour(DAY_STARTS)} to ${formatHour(DAY_ENDS)}, dark the rest of the time.`
+            : display === 'light' ? 'Light all the time.' : 'Dark all the time, easy on the eyes in bed.'}
+        </Muted>
+      </Card>
+
+      {remindersSupported && <Card title="Notifications">
         {(['bedtime', 'morning'] as const).map((phase) => (
           <ReminderRow key={phase} phase={phase} reminder={reminders[phase]} onChange={load} onError={setError} />
         ))}
-        <Muted>Local notifications from your phone. They work offline.</Muted>
+        <Muted>Sent by your phone only if you haven't filled in that check-in yet. They work offline.</Muted>
       </Card>}
 
       <Card title="Clock">
@@ -144,7 +163,7 @@ function ReminderRow({ phase, reminder, onChange, onError }: {
     onChange();
   };
   return (
-    <Row label={`${PHASE_NAME[phase]} reminder`}>
+    <Row label={`${PHASE_NAME[phase]} notification`}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
         {reminder && (
           <TimePicker value={new Date(2000, 0, 1, reminder.hour, reminder.minute)} accent={PHASE_COLOR[phase]}

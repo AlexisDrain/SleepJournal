@@ -18,6 +18,7 @@ import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
 import { anytimeDay, dueSlot, untilHint } from '@/lib/journal';
 import { useHour24 } from '@/lib/clockFormat';
+import { useThemeName } from '@/lib/displayMode';
 import { usePhaseOrder } from '@/lib/phaseOrder';
 import { colors, space } from '@/lib/theme';
 import { dayLabel } from '@/lib/time';
@@ -26,13 +27,14 @@ import type { RoutineItem, RoutinePhase, RoutineValue } from '@/lib/types';
 
 // Bedtime and Morning look like the Journal's sections; Anytime is a third list tied to neither.
 const PHASE_NAME: Record<RoutinePhase, string> = { bedtime: 'Bedtime', morning: 'Morning', anytime: 'Anytime' };
-const PHASE_COLOR: Record<RoutinePhase, string> = { bedtime: colors.night, morning: colors.morning, anytime: colors.success };
+const PHASE_COLOR: Record<RoutinePhase, string> = { get bedtime() { return colors.night; }, get morning() { return colors.morning; }, get anytime() { return colors.success; } };
 const PHASE_ICON: Record<RoutinePhase, string> = { bedtime: '☾', morning: '☀', anytime: '✓' };
 const EXAMPLE: Record<RoutinePhase, string> = { bedtime: 'Turned off computer', morning: 'Stretch', anytime: 'Exercise' };
 const SAVE_DELAY_MS = 500;
 const RETURN_TO_NOW_AFTER_MS = 10 * 60_000; // the same wait as the Journal
 
 export default function RoutinesScreen() {
+  useThemeName(); // redraw when the display changes (dark / light)
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false); // false until the lists have been read once: show a spinner, not empty lists
   const [routine, setRoutine] = useState<RoutineItem[]>([]);

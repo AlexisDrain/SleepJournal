@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { onPulled, requestSync } from '@/db/sync';
 import { syncReminders, useReminderTap } from '@/lib/notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useDisplayModeLoaded, useThemeName } from '@/lib/displayMode';
 import { colors } from '@/lib/theme';
 import { installWebHead } from '@/lib/webHead';
 import { useWelcomeSeen } from '@/lib/welcome';
@@ -12,6 +13,8 @@ installWebHead();
 
 export default function RootLayout() {
   const welcomeSeen = useWelcomeSeen();
+  const theme = useThemeName();
+  const displayLoaded = useDisplayModeLoaded();
 
   useReminderTap(!!welcomeSeen);
 
@@ -24,13 +27,13 @@ export default function RootLayout() {
     return onPulled(() => void syncReminders().catch(() => {}));
   }, [welcomeSeen]);
 
-  if (welcomeSeen === null) return null; // reading the flag from storage (a few ms)
+  if (welcomeSeen === null || !displayLoaded) return null; // reading saved settings (a few ms)
 
   // Until the welcome is finished only the welcome screen exists; finishing it flips the
   // guards and Expo Router moves to the tabs on its own.
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <StatusBar style="light" />
+      <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
         <Stack.Protected guard={welcomeSeen}>
           <Stack.Screen name="(tabs)" />

@@ -8,6 +8,7 @@ import {
   View,
   type TextInputProps,
 } from 'react-native';
+import { onThemeChange } from '../lib/displayMode';
 import { colors, radius, space } from '../lib/theme';
 
 export function Card({ title, children, right }: { title?: string; children: ReactNode; right?: ReactNode }) {
@@ -108,7 +109,8 @@ export function ErrorBox({ message, onRetry }: { message: string; onRetry?: () =
   );
 }
 
-export const styles = StyleSheet.create({
+// Built from the current colors, and built again when the display changes (dark / light).
+const makeStyles = () => StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderColor: colors.cardBorder,
@@ -149,4 +151,9 @@ export const styles = StyleSheet.create({
   muted: { color: colors.muted, fontSize: 14 },
   screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: space.lg, paddingBottom: 48 },
+});
+
+export let styles = makeStyles();
+onThemeChange(() => {
+  styles = makeStyles();
 });

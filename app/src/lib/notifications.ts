@@ -101,12 +101,10 @@ export function syncReminders(): Promise<void> {
 
 async function planReminders(): Promise<void> {
   const prefs = await getReminders();
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  for (const n of scheduled) {
-    if (n.identifier.startsWith(ID_PREFIX) || LEGACY_IDS.includes(n.identifier)) {
-      await Notifications.cancelScheduledNotificationAsync(n.identifier);
-    }
-  }
+  // This app schedules nothing but these reminders, so clear all of them and plan again. (Matching
+  // them by id isn't reliable: Expo Go reports scheduled ids in its own form, so some reminders,
+  // including ones for nights already filled in or after turning reminders off, were never cancelled.)
+  await Notifications.cancelAllScheduledNotificationsAsync();
   if (!prefs.bedtime && !prefs.morning) return;
 
   const first = addDays(currentNight(), -1);

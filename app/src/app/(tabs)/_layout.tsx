@@ -1,11 +1,13 @@
 import { Tabs } from 'expo-router';
 import { Text, type ColorValue } from 'react-native';
 import { colors } from '@/lib/theme';
+import { useThemeName } from '@/lib/displayMode';
 import { useWide } from '@/lib/useLayout';
 
 const icon = (glyph: string) => ({ color }: { color: ColorValue }) => <Text style={{ color, fontSize: 20 }}>{glyph}</Text>;
 
 export default function TabsLayout() {
+  useThemeName(); // redraw when the display changes (dark / light)
   const wide = useWide();
   return (
     <Tabs

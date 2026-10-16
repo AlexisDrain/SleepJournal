@@ -1,5 +1,6 @@
-// First launch: a one-screen welcome, then a short overview with optional reminders.
+// First launch: a one-screen welcome, then a short overview with optional notifications.
 import { useState } from 'react';
+import { useThemeName } from '@/lib/displayMode';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Muted } from '@/components/ui';
@@ -9,6 +10,7 @@ import { page } from '@/lib/useLayout';
 import { setWelcomeSeen } from '@/lib/welcome';
 
 export default function WelcomeScreen() {
+  useThemeName(); // redraw when the display changes (dark / light)
   const [step, setStep] = useState<0 | 1>(0);
   const [reminders, setReminders] = useState<'off' | 'on' | 'denied'>('off');
   const insets = useSafeAreaInsets();
@@ -60,7 +62,7 @@ export default function WelcomeScreen() {
               <Button title="Remind me at 10:30 PM and 10 AM" onPress={turnOnReminders}
                 color={colors.chip} textColor={colors.text} />
             )}
-            {reminders === 'on' && <Muted>✓ Reminders on. Change the times anytime in Settings.</Muted>}
+            {reminders === 'on' && <Muted>✓ Notifications on. Change the times anytime in Settings.</Muted>}
             {reminders === 'denied' && <Muted>Notifications are off for this app. You can allow them in iOS Settings.</Muted>}
             <Button title="Start journaling" onPress={() => setWelcomeSeen(true)} />
           </View>

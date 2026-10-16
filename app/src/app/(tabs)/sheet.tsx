@@ -13,21 +13,23 @@ import { Button, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { buildTable } from '@/db/csv';
 import type { ColumnGroup, SheetColumn, SheetValue } from '@/db/xlsx';
 import { loadExcluded, loadFillGaps, loadRoutineDetail } from '@/lib/exportPrefs';
-import { colors, space } from '@/lib/theme';
+import { colors, space, tints } from '@/lib/theme';
+import { useThemeName } from '@/lib/displayMode';
 
 const ROW_HEIGHT = 34;
 const HEADER_HEIGHT = 44;
 // Dark-theme versions of the export's green / blue / yellow: [header, cell]
 const TINT: Record<ColumnGroup, [string, string]> = {
-  other: ['#1f3d30', '#14211b'],
-  bedtime: ['#2a3170', '#171b38'],
-  morning: ['#57431d', '#231d12'],
+  get other() { return tints.other; },
+  get bedtime() { return tints.bedtime; },
+  get morning() { return tints.morning; },
 };
 const widthOf = (c: SheetColumn) => Math.max(72, Math.round(c.width * 8.5));
 
 const yearOf = (row: SheetValue[]) => String(row[0] ?? '').slice(-4);
 
 export default function SheetScreen() {
+  const theme = useThemeName(); // redraw when the display changes
   const [columns, setColumns] = useState<SheetColumn[]>([]);
   const [allRows, setAllRows] = useState<SheetValue[][]>([]);
   const [chosenYear, setChosenYear] = useState<string | null>(null); // null = the latest year
@@ -207,6 +209,7 @@ export default function SheetScreen() {
               </View>
               <FlatList
                 key={year}
+                extraData={theme}
                 ref={list}
                 onContentSizeChange={(_, h) => jumpToEnd(h)}
                 data={rows}

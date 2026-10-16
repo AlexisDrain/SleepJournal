@@ -21,6 +21,7 @@ import { syncReminders } from '@/lib/notifications';
 import { colors, radius, space } from '@/lib/theme';
 import { clockOf, currentNight, formatClock, formatDuration } from '@/lib/time';
 import { useHour24 } from '@/lib/clockFormat';
+import { useThemeName } from '@/lib/displayMode';
 import { usePhaseOrder } from '@/lib/phaseOrder';
 import type { Entry, EntryPatch, Phase, Tag } from '@/lib/types';
 import { useAutosave, type SaveStatus } from '@/lib/useAutosave';
@@ -34,6 +35,7 @@ const RETARGET_AFTER_MS = 10 * 60_000; // coming back after this long re-picks w
 const other = (p: Phase): Phase => (p === 'bedtime' ? 'morning' : 'bedtime');
 
 export default function JournalScreen() {
+  useThemeName(); // redraw when the display changes (dark / light)
   const { night } = useLocalSearchParams<{ night?: string }>(); // "/?night=2026-10-05" opens that night
   const [nightOf, setNightOf] = useState(night ?? currentNight());
   const [start, setStart] = useState<Start | null>(null);
@@ -363,13 +365,6 @@ function morningSteps({ nightOf, draft, rested, usual }: FieldProps): Step[] {
       ),
     },
     {
-      id: 'note',
-      question: 'Anything to note about the night?',
-      label: 'Note',
-      body: <Input multiline placeholder="e.g. insomnia, late to bed because of party"
-        value={draft.get('morningNote') ?? ''} onChangeText={(t) => draft.set('morningNote', t || null)} />,
-    },
-    {
       id: 'dream',
       question: 'Do you remember a dream?',
       label: 'Dream',
@@ -469,8 +464,8 @@ function StepByStep({ phase, steps, onDone }: { phase: Phase; steps: Step[]; onD
 // ---------- pieces of the full page ----------
 
 const SECTION = {
-  bedtime: { icon: '☾', title: 'Bedtime', accent: colors.night },
-  morning: { icon: '☀', title: 'Morning', accent: colors.morning },
+  bedtime: { icon: '☾', title: 'Bedtime', get accent() { return colors.night; } },
+  morning: { icon: '☀', title: 'Morning', get accent() { return colors.morning; } },
 };
 
 function Section({ phase, expanded, collapsible, filled, onToggle, summary, hint, children }: {

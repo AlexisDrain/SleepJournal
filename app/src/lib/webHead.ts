@@ -1,6 +1,7 @@
 // Web only: point the page at the home-screen icons and web-app manifest in /public.
 // (Expo's single-page web export doesn't write these tags itself.)
 import { Platform } from 'react-native';
+import { onThemeChange } from './displayMode';
 import { colors } from './theme';
 
 export function installWebHead() {
@@ -17,4 +18,12 @@ export function installWebHead() {
   add('meta', { name: 'theme-color', content: colors.bg });
   add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
   add('meta', { name: 'apple-mobile-web-app-title', content: 'Sleep Journal' });
+  // The browser's bar color and the page behind the app follow dark / light.
+  const follow = () => {
+    document.head.querySelector('meta[name="theme-color"]')?.setAttribute('content', colors.bg);
+    document.body.style.backgroundColor = colors.bg;
+    document.documentElement.style.colorScheme = colors.bg === '#0e1120' ? 'dark' : 'light';
+  };
+  follow();
+  onThemeChange(follow);
 }

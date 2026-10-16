@@ -12,9 +12,9 @@ import { Panel } from './Panel';
 import { Button, Muted } from './ui';
 
 const GROUPS: { group: ColumnGroup; title: string; color: string }[] = [
-  { group: 'other', title: 'General', color: colors.success },
-  { group: 'bedtime', title: 'Bedtime', color: colors.night },
-  { group: 'morning', title: 'Morning', color: colors.morning },
+  { group: 'other', title: 'General', get color() { return colors.success; } },
+  { group: 'bedtime', title: 'Bedtime', get color() { return colors.night; } },
+  { group: 'morning', title: 'Morning', get color() { return colors.morning; } },
 ];
 
 type Format = 'xlsx' | 'csv';
