@@ -146,6 +146,9 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
 .gsheet tr.new td { transition: opacity .5s, box-shadow .4s; }
 .gsheet tr.new.hide td { opacity: 0; }
 .gsheet tr.new.flash td { box-shadow: inset 0 0 0 999px #1a73e822; }
+.edited { box-shadow: inset 0 0 0 2px var(--night); }
+.gsheet td.edited { box-shadow: inset 0 0 0 2px #1a73e8; }
+#y-ph-mor.edited { box-shadow: 0 0 0 2px var(--night); }
 .packet.back { background: var(--night); box-shadow: 0 0 22px var(--night); }
 .packet { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 22px var(--green); opacity: 0; z-index: 6; }
 .brand { position: absolute; left: 40px; top: 32px; display: flex; align-items: center; gap: 10px; z-index: 8; transition: opacity .6s; }
@@ -349,7 +352,7 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
               <div class="saved">Saved ✓</div>
               <div class="chips"><span class="chipx">⇅ Swap</span><span class="chipx">One question at a time</span><span class="chipx" id="y-sync">⟳ Sync</span></div>
               <div class="sec done"><div class="sech"><span class="ic">☾</span><div><strong>Bedtime ✓</strong><small>in bed 11:40 PM · trying 11:55 PM</small></div></div></div>
-              <div class="sec mo done"><div class="sech"><span class="ic">☀</span><div><strong>Morning ✓</strong><small>woke 7:30 AM · Rested · 15m to fall asleep</small></div></div></div>
+              <div class="sec mo done" id="y-ph-mor"><div class="sech"><span class="ic">☀</span><div><strong>Morning ✓</strong><small>woke <span id="y-ph-woke">7:30 AM</span> · Rested · 15m to fall asleep</small></div></div></div>
             </div>
             <div class="tabs"><div class="cur"><b>☾</b>Journal</div><div><b>✓</b>Routines</div><div><b>▦</b>Sheet</div><div><b>⚙</b>Settings</div></div>
             <div class="tap" id="y-tap"></div>
@@ -362,15 +365,25 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
             <tr><th class="h1">Night of</th><th class="h2">In bed</th><th class="h3">Woke up</th><th class="h3">Rested</th></tr>
             <tr><td class="c1">10-11-2026</td><td class="c2">11:15 PM</td><td class="c3">7:05 AM</td><td class="c3">3</td></tr>
             <tr><td class="c1">10-12-2026</td><td class="c2">12:10 AM</td><td class="c3">8:20 AM</td><td class="c3">2</td></tr>
-            <tr class="new hide" id="y-gs-new"><td class="c1">10-13-2026</td><td class="c2">11:40 PM</td><td class="c3">7:30 AM</td><td class="c3">4</td></tr>
+            <tr class="new hide" id="y-gs-new"><td class="c1">10-13-2026</td><td class="c2">11:40 PM</td><td class="c3" id="y-gs-woke">7:30 AM</td><td class="c3">4</td></tr>
           </table>
         </div>
 
         <div class="browser" style="left: 730px; top: 185px; width: 500px; height: 340px">
-          <div class="chrome"><i></i><i></i><i></i><span>sleep-journal.expo.app/sheet</span></div>
+          <div class="chrome"><i></i><i></i><i></i><span id="y-url">sleep-journal.expo.app/sheet</span></div>
           <div class="web">
-            <div class="rail"><div><b>☾</b>Journal</div><div><b>✓</b>Routines</div><div class="cur"><b>▦</b>Sheet</div><div><b>⚙</b>Settings</div></div>
-            <div class="pane">
+            <div class="rail"><div id="y-rail-j"><b>☾</b>Journal</div><div><b>✓</b>Routines</div><div class="cur" id="y-rail-s"><b>▦</b>Sheet</div><div><b>⚙</b>Settings</div></div>
+            <!-- The Journal on the computer: where the edit is made (the Sheet tab is for reading). -->
+            <div class="pane" id="y-web-journal" style="display: none">
+              <div class="date"><strong>Tuesday night → Wednesday morning</strong><small>Oct 13, 2026 ▾</small></div>
+              <div class="saved" id="y-web-saved">Saved ✓</div>
+              <div class="sec mo done">
+                <div class="sech"><span class="ic">☀</span><div><strong>Morning ✓</strong><small>until 3 PM</small></div></div>
+                <div class="row">Woke up <span class="time" id="y-web-woke">7:30 AM</span></div>
+                <div class="row">Started the day <span class="time">7:45 AM</span></div>
+              </div>
+            </div>
+            <div class="pane" id="y-web-sheet">
               <h4>Sheet</h4><small id="y-count">2 nights in 2026</small>
               <table class="sheet">
                 <tr><th class="g">Night of</th><th class="n">In bed</th><th class="mm">Woke up</th></tr>
@@ -386,6 +399,7 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
         <div class="flow" style="left: 730px; top: 540px; width: 500px; text-align: center">Desktop browser</div>
         <div class="packet" id="y-packet"></div>
         <div class="packet back" id="y-packet2"></div>
+        <svg class="pointer" id="y-ptr" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 2l15 11-6.5 1.2L15 21l-3 1.4-3.5-6.8L3 20z" fill="#fff" stroke="#0e1120" stroke-width="1.4" stroke-linejoin="round"/></svg>
         <p class="note-band">
           <span><b>Private to you.</b> No account, no Google sign-in inside the app. Edit in the sheet and it syncs back.</span>
         </p>
@@ -567,12 +581,32 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
     if (pk) { p.style.left = pk[0] + 'px'; p.style.top = pk[1] + 'px'; }
     // And back the other way: an edit made on the desktop goes up to the sheet too (blue, arcing below).
     const p2 = $('y-packet2');
-    const back = t >= 36.0 && t < 37.1;
-    p2.style.opacity = back ? 1 : 0;
-    if (back) { const k = (t - 36.0) / 1.1; p2.style.left = lerp(760, 690, k) + 'px'; p2.style.top = lerp(360, 360 + 60 * Math.sin(Math.PI * k), k) + 'px'; }
+    // The other direction: the desktop changes the wake-up time, and it travels to the sheet, then the phone.
+    let b2 = null;
+    if (t >= 37.0 && t < 38.1) { const k = (t - 37.0) / 1.1; b2 = [lerp(760, 690, k), lerp(360, 360 + 60 * Math.sin(Math.PI * k), k)]; }
+    if (t >= 38.5 && t < 39.6) { const k = (t - 38.5) / 1.1; b2 = [lerp(330, 255, k), lerp(360, 360 + 60 * Math.sin(Math.PI * k), k)]; }
+    p2.style.opacity = b2 ? 1 : 0;
+    if (b2) { p2.style.left = b2[0] + 'px'; p2.style.top = b2[1] + 'px'; }
+    const edit = (el, at) => {
+      el.textContent = t >= at ? '7:20 AM' : '7:30 AM';
+      el.classList.toggle('edited', t >= at && t < at + 1.1);
+    };
+    // On the computer: open the Journal, then change the wake-up time there.
+    const onJournal = t >= 35.8;
+    $('y-web-journal').style.display = onJournal ? 'block' : 'none';
+    $('y-web-sheet').style.display = onJournal ? 'none' : 'block';
+    $('y-rail-j').classList.toggle('cur', onJournal);
+    $('y-rail-s').classList.toggle('cur', !onJournal);
+    $('y-url').textContent = onJournal ? 'sleep-journal.expo.app' : 'sleep-journal.expo.app/sheet';
+    $('y-web-saved').textContent = t >= 36.5 && t < 37.0 ? 'Saving…' : 'Saved ✓';
+    edit($('y-web-woke'), 36.5);  // typed on the computer
+    pointerAt($('y-ptr'), t, [[30, $('y-rail-s')], [35.8, $('y-rail-j')], [36.5, $('y-web-woke')]]);
+    edit($('y-gs-woke'), 38.1);   // arrives in the sheet
+    edit($('y-ph-woke'), 39.6);   // arrives on the phone
+    $('y-ph-mor').classList.toggle('edited', t >= 39.6 && t < 40.7);
     const gsNew = $('y-gs-new');
     gsNew.classList.toggle('hide', t < 32.8);
-    gsNew.classList.toggle('flash', (t >= 32.8 && t < 33.9) || (t >= 37.1 && t < 38.2));
+    gsNew.classList.toggle('flash', t >= 32.8 && t < 33.9);
     const webNew = $('y-web-new');
     webNew.classList.toggle('hide', t < 34.9);
     webNew.classList.toggle('flash', t >= 34.9 && t < 36.1);
