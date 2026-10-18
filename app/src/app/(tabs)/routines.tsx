@@ -177,7 +177,7 @@ export default function RoutinesScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>{PHASE_NAME[phase]}</Text>
                       {/* The hours this list covers: a check-in's window, or for Anytime its whole calendar day. */}
-                      {!editMode && <Muted>{phase === 'anytime' ? `${dayLabel(anyDay)} · all day` : untilHint(phase)}</Muted>}
+                      {!editMode && <Muted>{phase === 'anytime' ? `${dayLabel(anyDay)} · all day` : untilHint(phase, nightOf)}</Muted>}
                     </View>
                   </View>
                   {editMode ? (

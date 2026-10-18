@@ -17,11 +17,15 @@ const LATE_BEDTIME_UNTIL = 3;
 const NEXT_NIGHT_AT = 15;
 
 /**
- * A short reminder of the hours a check-in covers:
- * bedtime "until 3 AM", morning "until 3 PM", when the app moves to the next night.
+ * When a check-in happens, under its title: bedtime is the evening the night starts ("Oct 17 · until 3 AM",
+ * which is the early hours after it), morning is the next day ("Oct 18 · until 3 PM", when the app
+ * moves to the next night).
  */
-export function untilHint(phase: Phase): string {
-  return `until ${formatHour(phase === 'bedtime' ? LATE_BEDTIME_UNTIL : NEXT_NIGHT_AT)}`;
+export function untilHint(phase: Phase, nightOf: string): string {
+  const day = phase === 'bedtime' ? nightOf : addDays(nightOf, 1);
+  const [y, m, d] = day.split('-').map(Number);
+  const date = new Date(y, m - 1, d).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `${date} · until ${formatHour(phase === 'bedtime' ? LATE_BEDTIME_UNTIL : NEXT_NIGHT_AT)}`;
 }
 
 /**

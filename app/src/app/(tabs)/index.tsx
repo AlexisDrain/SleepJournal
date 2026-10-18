@@ -210,7 +210,7 @@ export default function JournalScreen() {
                     <View key={phase} style={wide ? { flex: 1 } : undefined}>
                       <Section phase={phase} expanded={wide || expanded[phase]} collapsible={!wide} filled={filledNow(phase)}
                         onToggle={() => setExpanded((x) => ({ ...x, [phase]: !x[phase] }))}
-                        summary={summary(phase, entry)} hint={untilHint(phase)}>
+                        summary={summary(phase, entry)} hint={untilHint(phase, nightOf)}>
                         <AllSteps steps={phase === 'bedtime' ? bedtimeSteps(fields) : morningSteps(fields)} />
                       </Section>
                     </View>
