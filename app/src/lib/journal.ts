@@ -2,7 +2,7 @@
 // and which check-in to show when the app opens.
 import { store } from '@/db/store';
 import { formatHour } from './clockFormat';
-import { addDays, clockOf, currentNight, toDateString, toLocalIso, type ClockTime } from './time';
+import { addDays, clockOf, currentNight, dayLabel, toDateString, toLocalIso, type ClockTime } from './time';
 import type { Entry, Phase } from './types';
 
 /** A check-in counts as filled once its key time is in: bed/sleep time at night, wake time in the morning. */
@@ -17,15 +17,16 @@ const LATE_BEDTIME_UNTIL = 3;
 const NEXT_NIGHT_AT = 15;
 
 /**
- * When a check-in happens, under its title: bedtime is the evening the night starts ("Oct 17 · until 3 AM",
- * which is the early hours after it), morning is the next day ("Oct 18 · until 3 PM", when the app
- * moves to the next night).
+ * When a check-in happens, under its title: bedtime starts the evening the night begins and runs past
+ * midnight ("Saturday, Oct 17 · until Oct 18, 3 AM"); morning is the next day ("Sunday, Oct 18 · until 3 PM",
+ * when the app moves to the next night).
  */
 export function untilHint(phase: Phase, nightOf: string): string {
-  const day = phase === 'bedtime' ? nightOf : addDays(nightOf, 1);
-  const [y, m, d] = day.split('-').map(Number);
-  const date = new Date(y, m - 1, d).toLocaleDateString([], { month: 'short', day: 'numeric' });
-  return `${date} · until ${formatHour(phase === 'bedtime' ? LATE_BEDTIME_UNTIL : NEXT_NIGHT_AT)}`;
+  if (phase === 'morning') return `${dayLabel(addDays(nightOf, 1))} · until ${formatHour(NEXT_NIGHT_AT)}`;
+  // Bedtime runs past midnight, so its end names the next day: "Monday, Oct 19 · until Oct 20, 3 AM".
+  const [y, m, d] = addDays(nightOf, 1).split('-').map(Number);
+  const nextDay = new Date(y, m - 1, d).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `${dayLabel(nightOf)} · until ${nextDay}, ${formatHour(LATE_BEDTIME_UNTIL)}`;
 }
 
 /**
