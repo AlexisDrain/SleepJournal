@@ -20,6 +20,7 @@ import { loadJournalMode, saveJournalMode, type JournalMode } from '@/lib/journa
 import { syncReminders } from '@/lib/notifications';
 import { colors, radius, space } from '@/lib/theme';
 import { clockOf, currentNight, formatClock, formatDuration } from '@/lib/time';
+import { useCombine, type Combine } from '@/lib/advanced';
 import { useHour24 } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
 import { usePhaseOrder } from '@/lib/phaseOrder';
@@ -157,7 +158,8 @@ export default function JournalScreen() {
 
   // A saved answer always shows. Otherwise 3 is pre-selected, unless you cleared it for this night.
   const rested = draft.get('rested') ?? (draft.get('restedSkipped') ? null : DEFAULT_RESTED);
-  const fields: FieldProps = { nightOf, draft, tags, rested, usual };
+  const combine = useCombine();
+  const fields: FieldProps = { nightOf, draft, tags, rested, usual, combine };
   const filledNow = (phase: Phase) =>
     isFilled({ inBedAt: draft.get('inBedAt'), triedSleepAt: draft.get('triedSleepAt'), wokeAt: draft.get('wokeAt') }, phase);
 
@@ -210,7 +212,7 @@ export default function JournalScreen() {
                     <View key={phase} style={wide ? { flex: 1 } : undefined}>
                       <Section phase={phase} expanded={wide || expanded[phase]} collapsible={!wide} filled={filledNow(phase)}
                         onToggle={() => setExpanded((x) => ({ ...x, [phase]: !x[phase] }))}
-                        summary={summary(phase, entry)} hint={untilHint(phase, nightOf)}>
+                        summary={summary(phase, entry, combine)} hint={untilHint(phase, nightOf)}>
                         <AllSteps steps={phase === 'bedtime' ? bedtimeSteps(fields) : morningSteps(fields)} />
                       </Section>
                     </View>
@@ -257,6 +259,8 @@ type FieldProps = {
   tags: Tag[];
   rested: number | null;
   usual: UsualTimes;
+  /** Settings → Advanced: one time question instead of two, saved in both fields. */
+  combine: Combine;
 };
 
 /** One thing the Journal asks. The same list drives both layouts: all on a page, or one at a time. */
@@ -282,10 +286,31 @@ function TimeWarning({ children }: { children: ReactNode }) {
   );
 }
 
-function bedtimeSteps({ nightOf, draft, usual }: FieldProps): Step[] {
+function bedtimeSteps({ nightOf, draft, usual, combine }: FieldProps): Step[] {
   const accent = colors.night;
   const inBed = draft.get('inBedAt');
   const tried = draft.get('triedSleepAt');
+  const note: Step = {
+    id: 'note',
+    question: 'Anything to note before sleeping?',
+    label: 'Note',
+    body: <Input multiline placeholder="e.g. must wake up at 8 am for ✈️"
+      value={draft.get('bedtimeNote') ?? ''} onChangeText={(t) => draft.set('bedtimeNote', t || null)} />,
+  };
+  if (combine.bed) {
+    return [
+      {
+        id: 'inBed',
+        question: 'When did you go to bed?',
+        body: <TimeField label="Went to bed" nightOf={nightOf} phase="bedtime" accent={accent} usual={usual.inBedAt}
+          value={inBed ?? tried} onChange={(v) => {
+            draft.set('inBedAt', v);
+            draft.set('triedSleepAt', v);
+          }} />,
+      },
+      note,
+    ];
+  }
   return [
     {
       id: 'inBed',
@@ -307,19 +332,17 @@ function bedtimeSteps({ nightOf, draft, usual }: FieldProps): Step[] {
         </TimeWarning>
       ),
     },
-    {
-      id: 'note',
-      question: 'Anything to note before sleeping?',
-      label: 'Note',
-      body: <Input multiline placeholder="e.g. must wake up at 8 am for ✈️"
-        value={draft.get('bedtimeNote') ?? ''} onChangeText={(t) => draft.set('bedtimeNote', t || null)} />,
-    },
+    note,
   ];
 }
 
-function morningSteps({ nightOf, draft, rested, usual }: FieldProps): Step[] {
+function morningSteps({ nightOf, draft, rested, usual, combine }: FieldProps): Step[] {
   const accent = colors.morning;
-  const woke = draft.get('wokeAt');
+  const woke = draft.get('wokeAt') ?? (combine.morning ? draft.get('dayStartedAt') : null);
+  const setWoke = (v: string | null) => {
+    draft.set('wokeAt', v);
+    if (combine.morning) draft.set('dayStartedAt', v); // one answer for both
+  };
   const started = draft.get('dayStartedAt');
   const latency = draft.get('sleepLatencyMin');
   const selectedTags = draft.get('tags') ?? [];
@@ -328,11 +351,11 @@ function morningSteps({ nightOf, draft, rested, usual }: FieldProps): Step[] {
   return [
     {
       id: 'woke',
-      question: 'When did you wake up?',
+      question: combine.morning ? 'When did you get up?' : 'When did you wake up?',
       body: (
         <>
-          <TimeField label="Woke up" nightOf={nightOf} phase="morning" accent={accent} usual={usual.wokeAt}
-            value={woke} onChange={(v) => draft.set('wokeAt', v)} />
+          <TimeField label={combine.morning ? 'Got up' : 'Woke up'} nightOf={nightOf} phase="morning" accent={accent} usual={usual.wokeAt}
+            value={woke} onChange={setWoke} />
           {problem && (
             <View style={{ backgroundColor: colors.bg, borderRadius: 8, borderWidth: 1, borderColor: colors.danger + '88', padding: space.md, gap: space.sm }}>
               <Text style={{ color: colors.text }}>
@@ -343,14 +366,14 @@ function morningSteps({ nightOf, draft, rested, usual }: FieldProps): Step[] {
               </Text>
               {problem.fix && (
                 <Chip label={`Change to ${formatClock(problem.fix)}`} color={colors.morning}
-                  onPress={() => draft.set('wokeAt', problem.fix)} />
+                  onPress={() => setWoke(problem.fix)} />
               )}
             </View>
           )}
         </>
       ),
     },
-    {
+    ...(combine.morning ? [] : [{
       id: 'started',
       question: 'When did you start your day?',
       waitsForPrevious: !(woke || started),
@@ -363,7 +386,7 @@ function morningSteps({ nightOf, draft, rested, usual }: FieldProps): Step[] {
           and AM / PM.
         </TimeWarning>
       ),
-    },
+    }]),
     {
       id: 'dream',
       question: 'Do you remember a dream?',
@@ -543,12 +566,12 @@ function Label({ children }: { children: ReactNode }) {
 }
 
 /** One line shown when a section is folded. */
-function summary(phase: Phase, e: Entry | null) {
+function summary(phase: Phase, e: Entry | null, combine: Combine) {
   if (phase === 'bedtime') {
     if (!e?.inBedAt && !e?.triedSleepAt) return 'Fill this before going to sleep';
     return [
       e?.inBedAt && `in bed ${formatClock(e.inBedAt)}`,
-      e?.triedSleepAt && `trying ${formatClock(e.triedSleepAt)}`,
+      !combine.bed && e?.triedSleepAt && `trying ${formatClock(e.triedSleepAt)}`,
     ].filter(Boolean).join(' · ');
   }
   if (!e?.wokeAt && e?.rested == null) return 'Fill this in when you wake up';

@@ -131,6 +131,10 @@ export const REQUIRED_COLUMN = 'Night of';
 async function allColumns(): Promise<Column[]> {
   await clockFormatReady; // times are written in the saved 12/24-hour style, never a guess
   const items = await store.routine.list();
+  // The app never asks for "Times woke up" (it only comes from imported spreadsheets), so the column
+  // only appears for journals that have such numbers. New journals don't get an always-empty column.
+  const hasWakeCounts = !!(await (await getDb()).getFirstAsync('SELECT 1 AS x FROM entries WHERE wake_count IS NOT NULL LIMIT 1'));
+  const base = BASE_COLUMNS.filter((c) => hasWakeCounts || c.header !== 'Times woke up');
   // "●●○● 3/4": a dot per current routine item in order, filled when done. Blank if none were done.
   const summary = (phase: RoutinePhase): Column => {
     const current = items.filter((i) => i.phase === phase && !i.archived).sort((a, b) => a.sortOrder - b.sortOrder);
@@ -159,12 +163,12 @@ async function allColumns(): Promise<Column[]> {
         detail: true,
       }));
 
-  const lastBedtime = BASE_COLUMNS.map((c) => c.group).lastIndexOf('bedtime');
+  const lastBedtime = base.map((c) => c.group).lastIndexOf('bedtime');
   return [
-    ...BASE_COLUMNS.slice(0, lastBedtime + 1),
+    ...base.slice(0, lastBedtime + 1),
     summary('bedtime'),
     ...routineCols('bedtime'),
-    ...BASE_COLUMNS.slice(lastBedtime + 1),
+    ...base.slice(lastBedtime + 1),
     summary('morning'),
     ...routineCols('morning'),
     // The "anytime" list comes last, and only once it has items (so it adds nothing if you don't use it).

@@ -8,6 +8,7 @@ import { Button, Card, Chip, ErrorBox, Muted, Row, styles } from '@/components/u
 import { pickAndImportCsv } from '@/db/csv';
 import buildInfo from '@/lib/buildInfo.json';
 import { requestSync, resendAllNights } from '@/db/sync';
+import { setCombine, useCombine } from '@/lib/advanced';
 import { setHour24, useHour24 } from '@/lib/clockFormat';
 import { DAY_ENDS, DAY_STARTS, setDisplayMode, useDisplayMode, type DisplayMode } from '@/lib/displayMode';
 import { formatHour } from '@/lib/clockFormat';
@@ -35,6 +36,7 @@ export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
   const hour24 = useHour24();
   const display = useDisplayMode();
+  const combine = useCombine();
 
   const load = useCallback(async () => {
     setError(null);
@@ -116,6 +118,19 @@ export default function SettingsScreen() {
       </Card>
 
       <ExportSheet visible={exporting} onClose={() => setExporting(false)} onError={setError} />
+
+      <Card title="Advanced">
+        <Row label="Combine “Got in bed” and “Trying to sleep”">
+          <Switch value={combine.bed} trackColor={{ true: colors.night }} onValueChange={(v) => void setCombine({ bed: v })} />
+        </Row>
+        <Row label="Combine “Woke up” and “Started the day”">
+          <Switch value={combine.morning} trackColor={{ true: colors.morning }} onValueChange={(v) => void setCombine({ morning: v })} />
+        </Row>
+        <Muted>
+          The Journal asks one time instead of two. It's saved in both columns, so the spreadsheet and
+          hours asleep keep working.
+        </Muted>
+      </Card>
 
       <Card title="Welcome screen">
         <Muted>The short overview of how the app works, shown the first time you opened it.</Muted>
