@@ -266,6 +266,22 @@ const routine = {
     });
   },
 
+  /** Put a list's items in the given order (ids of the items showing); hidden ones keep their place after them. */
+  setOrder: async (phase: RoutinePhase, ids: number[]) => {
+    const db = await getDb();
+    const all = (await routineTable.list()).filter((i) => i.phase === phase);
+    const shown = ids.map((id) => all.find((i) => i.id === id)).filter((i): i is RoutineItem => !!i);
+    const list = [...shown, ...all.filter((i) => !ids.includes(i.id))];
+    const now = stamp();
+    await transaction(db, async (tx) => {
+      for (const [i, item] of list.entries()) {
+        if (item.sortOrder !== i + 1) {
+          await tx.runAsync(`UPDATE routine_items SET sort_order = ?, updated_at = ? WHERE id = ?`, i + 1, now, item.id);
+        }
+      }
+    });
+  },
+
   /** Move an item one place up (-1) or down (1) among the items that are showing. */
   move: async (id: number, direction: -1 | 1) => {
     const db = await getDb();

@@ -332,34 +332,54 @@ export function isEmptyRow(header: string[], row: string[]): boolean {
  * A row of text cells → a full patch for that night. Every field is set (blank → cleared),
  * including all routine columns, so applying it makes the night match the row exactly.
  */
+/**
+ * One spreadsheet row → changes for that night. Careful with what people do to sheets:
+ *   - a column that isn't there (deleted, renamed) leaves that field alone (undefined)
+ *   - a cell that can't be read (text in a time or number column) also leaves it alone
+ *   - only an empty cell clears the field (null)
+ * So a damaged sheet can never wipe what's on the device.
+ */
 export function rowToPatch(header: string[], row: string[], nightOf: string, routineCols: RoutineColumn[]): EntryPatch {
-  const get = (name: string) => (header.indexOf(name) >= 0 ? (row[header.indexOf(name)] ?? '').trim() : '');
-  const int = (name: string) => (/^\d+$/.test(get(name)) ? Number(get(name)) : null);
-  const rested = int('Rested (1-5)');
+  const cellOf = (name: string): string | undefined => (header.indexOf(name) >= 0 ? (row[header.indexOf(name)] ?? '').trim() : undefined);
+  const text = (name: string) => { const v = cellOf(name); return v === undefined ? undefined : v || null; };
+  const time = (name: string, phase: RoutinePhase) => {
+    const v = cellOf(name);
+    if (v === undefined) return undefined;
+    if (!v) return null;
+    return fromClock(v, nightOf, phase) ?? undefined; // unreadable: keep what's there
+  };
+  const int = (name: string, ok: (n: number) => boolean = () => true) => {
+    const v = cellOf(name);
+    if (v === undefined) return undefined;
+    if (!v) return null;
+    return /^\d+$/.test(v) && ok(Number(v)) ? Number(v) : undefined;
+  };
 
   const routine: Record<string, RoutineValue> = {};
   for (const { index, item } of routineCols) {
     const v = (row[index] ?? '').trim();
-    routine[item.id] =
+    const value: RoutineValue | undefined =
       !v ? null
       : item.kind === 'check' ? true
-      : item.kind === 'time' ? fromClock(v, nightOf, item.phase)
-      : item.kind === 'number' ? (Number.isNaN(Number(v)) ? null : Number(v))
+      : item.kind === 'time' ? fromClock(v, nightOf, item.phase) ?? undefined
+      : item.kind === 'number' ? (Number.isNaN(Number(v)) ? undefined : Number(v))
       : v;
+    if (value !== undefined) routine[item.id] = value;
   }
+  const tags = cellOf('Tags');
 
   return {
-    inBedAt: fromClock(get('In bed'), nightOf, 'bedtime'),
-    triedSleepAt: fromClock(get('Tried to sleep'), nightOf, 'bedtime'),
+    inBedAt: time('In bed', 'bedtime'),
+    triedSleepAt: time('Tried to sleep', 'bedtime'),
     sleepLatencyMin: int('Minutes to fall asleep'),
     wakeCount: int('Times woke up'),
-    wokeAt: fromClock(get('Woke up'), nightOf, 'morning'),
-    dayStartedAt: fromClock(get('Started day'), nightOf, 'morning'),
-    rested: rested !== null && rested >= 1 && rested <= 5 ? rested : null,
-    bedtimeNote: get('Bedtime note') || null,
-    morningNote: get('Morning note') || null,
-    dream: get('Dream') || null,
-    tags: get('Tags').split('+').map((t) => t.trim()).filter(Boolean),
+    wokeAt: time('Woke up', 'morning'),
+    dayStartedAt: time('Started day', 'morning'),
+    rested: int('Rested (1-5)', (n) => n >= 1 && n <= 5),
+    bedtimeNote: text('Bedtime note'),
+    morningNote: text('Morning note'),
+    dream: text('Dream'),
+    tags: tags === undefined ? undefined : tags.split('+').map((t) => t.trim()).filter(Boolean),
     routine,
   };
 }

@@ -60,6 +60,36 @@ export async function loadFillGaps(scope: PrefScope = 'export'): Promise<boolean
   return (await read(scope, 'gaps')) === 'true';
 }
 
+/** The Sheet tab's own column order (headers), or null for the default. Doesn't affect exports. */
+const ORDER_KEY = 'sleepjournal.sheetTabColumnOrder.v1';
+export async function loadColumnOrder(): Promise<string[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(ORDER_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : null;
+  } catch {
+    return null;
+  }
+}
+export async function saveColumnOrder(order: string[] | null): Promise<void> {
+  if (order) await AsyncStorage.setItem(ORDER_KEY, JSON.stringify(order));
+  else await AsyncStorage.removeItem(ORDER_KEY);
+}
+
+/** Text you read rather than scan; the Sheet tab keeps them side by side, at the end, by default. */
+export const TEXT_COLUMNS = ['Tags', 'Bedtime note', 'Morning note', 'Dream'];
+
+/**
+ * The Sheet tab's column order: "Night of" first, then your saved order, with any column you
+ * haven't placed yet (a new routine item, say) in its usual spot after them.
+ */
+export function arrangeColumns(headers: string[], saved: string[] | null): string[] {
+  const [first, ...rest] = headers;
+  const usual = [...rest.filter((h) => !TEXT_COLUMNS.includes(h)), ...TEXT_COLUMNS.filter((h) => rest.includes(h))];
+  if (!saved) return [first, ...usual];
+  const placed = saved.filter((h) => rest.includes(h));
+  return [first, ...placed, ...usual.filter((h) => !placed.includes(h))];
+}
+
 export async function saveFillGaps(on: boolean, scope: PrefScope = 'export'): Promise<void> {
   await AsyncStorage.setItem(KEYS[scope].gaps, String(on));
 }

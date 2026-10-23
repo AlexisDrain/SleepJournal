@@ -15,8 +15,9 @@ import { formatHour } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
 import { REPO_URL } from '@/lib/links';
 import type { Phase } from '@/lib/types';
-import { clearReminder, ensurePermission, getReminders, remindersSupported, setReminder, type Reminder } from '@/lib/notifications';
+import { clearReminder, ensurePermission, getReminders, plannedReminders, remindersSupported, setReminder, type Reminder } from '@/lib/notifications';
 import { colors, space } from '@/lib/theme';
+import { formatClock } from '@/lib/time';
 import { NARROW_PAGE, page } from '@/lib/useLayout';
 import { setWelcomeSeen } from '@/lib/welcome';
 
@@ -32,6 +33,7 @@ export default function SettingsScreen() {
   useThemeName(); // redraw when the display changes (dark / light)
   const [error, setError] = useState<string | null>(null);
   const [reminders, setReminders] = useState<Partial<Record<Phase, Reminder>>>({});
+  const [planned, setPlanned] = useState<{ count: number; next: Date | null } | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const hour24 = useHour24();
@@ -42,6 +44,7 @@ export default function SettingsScreen() {
     setError(null);
     try {
       setReminders(await getReminders());
+      setPlanned(await plannedReminders().catch(() => null));
     } catch (e) {
       setError((e as Error).message);
     }
@@ -86,6 +89,13 @@ export default function SettingsScreen() {
           <ReminderRow key={phase} phase={phase} reminder={reminders[phase]} onChange={load} onError={setError} />
         ))}
         <Muted>Sent by your phone only if you haven't filled in that check-in yet. They work offline.</Muted>
+        {planned && (
+          <Muted>
+            {planned.count === 0
+              ? 'None planned on this phone right now.'
+              : `${planned.count} planned on this phone${planned.next ? `, next ${planned.next.toLocaleDateString([], { weekday: 'short' })} ${formatClock(planned.next.toISOString())}` : ''}.`}
+          </Muted>
+        )}
       </Card>}
 
       <Card title="Clock">

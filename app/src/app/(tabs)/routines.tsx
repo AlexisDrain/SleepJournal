@@ -10,9 +10,10 @@ import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable,
 import { CalendarSheet } from '@/components/CalendarSheet';
 import { NightSwitcher, Routine } from '@/components/inputs';
 import { KIND_LABEL, RoutineItemEditor } from '@/components/RoutineItemEditor';
-import { SwipeRow } from '@/components/SwipeRow';
 import { TagManager } from '@/components/TagManager';
 import { SyncChip } from '@/components/SyncChip';
+import { SyncLine } from '@/components/SyncLine';
+import { SortableList } from '@/components/SortableList';
 import { Button, Card, Chip, ErrorBox, Input, Muted, Row, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
@@ -155,7 +156,7 @@ export default function RoutinesScreen() {
         {/* One short line and then the buttons, spaced exactly like the Journal's "Changes save
             automatically" line, so the buttons sit at the same height on both tabs. */}
         <Text style={{ color: colors.muted, textAlign: 'center', marginTop: editMode ? 0 : -space.sm, marginBottom: space.md, fontSize: 13 }}>
-          {editMode ? 'Tap an item to rename or hide it. ▲ ▼ change the order.' : 'Ticks save automatically'}
+          {editMode ? 'Tap an item to rename or hide it. Drag ≡ to change the order.' : 'Ticks save automatically'}
         </Text>
         <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: space.md, marginBottom: space.md }}>
           {/* Swaps Bedtime and Morning on this screen only. The data doesn't change. */}
@@ -163,6 +164,7 @@ export default function RoutinesScreen() {
           {!editMode && <SyncChip />}
           <Chip label={editMode ? 'Done' : 'Edit'} selected={editMode} onPress={() => setEditMode((v) => !v)} />
         </View>
+        {!editMode && <SyncLine />}
 
         {!loaded && !error && <ActivityIndicator color={colors.night} style={{ marginBottom: space.md }} />}
         <View style={[wide ? { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' } : undefined, !loaded && { opacity: 0 }]}>
@@ -182,21 +184,14 @@ export default function RoutinesScreen() {
                   </View>
                   {editMode ? (
                     <>
-                      <View>
-                        {items.map((r, i) => (
-                          <SwipeRow key={r.id} onEdit={() => setEditing(r)} onHide={hide(r)}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-                              <Pressable onPress={() => setEditing(r)} style={{ flex: 1 }}>
-                                <Row label={r.label}>{r.kind !== 'check' ? <Muted>+ {KIND_LABEL[r.kind]}</Muted> : null}</Row>
-                              </Pressable>
-                              <MoveButton glyph="▲" label={`Move ${r.label} up`} disabled={i === 0}
-                                onPress={act(() => store.routine.move(r.id, -1))} />
-                              <MoveButton glyph="▼" label={`Move ${r.label} down`} disabled={i === items.length - 1}
-                                onPress={act(() => store.routine.move(r.id, 1))} />
-                            </View>
-                          </SwipeRow>
-                        ))}
-                      </View>
+                      {/* Drag the ≡ handle to reorder; tap the item to rename, change or hide it. */}
+                      <SortableList items={items} keyOf={(r) => String(r.id)}
+                        onReorder={(next) => act(() => store.routine.setOrder(phase, next.map((r) => r.id)))()}
+                        renderItem={(r) => (
+                          <Pressable onPress={() => setEditing(r)} accessibilityRole="button" accessibilityLabel={`Edit ${r.label}`}>
+                            <Row label={r.label}>{r.kind !== 'check' ? <Muted>+ {KIND_LABEL[r.kind]}</Muted> : null}</Row>
+                          </Pressable>
+                        )} />
                       <NewRoutineItem phase={phase} onCreate={(item) => act(() => store.routine.create(item))()} />
                     </>
                   ) : items.length ? (
@@ -259,19 +254,6 @@ function NewRoutineItem({ phase, onCreate }: { phase: RoutinePhase; onCreate: (i
         </>
       )}
     </View>
-  );
-}
-
-/** ▲ / ▼ beside an item in Edit mode. */
-function MoveButton({ glyph, label, disabled, onPress }: { glyph: string; label: string; disabled: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} disabled={disabled} hitSlop={6} accessibilityRole="button" accessibilityLabel={label}
-      style={{
-        width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: colors.chip, opacity: disabled ? 0.3 : 1,
-      }}>
-      <Text style={{ color: colors.text, fontSize: 13 }}>{glyph}</Text>
-    </Pressable>
   );
 }
 

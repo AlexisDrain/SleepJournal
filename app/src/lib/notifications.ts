@@ -88,6 +88,16 @@ export async function clearReminder(phase: Phase): Promise<void> {
 
 let planning: Promise<void> = Promise.resolve();
 
+/** How many reminders are waiting on this phone, and when the next one goes off. */
+export async function plannedReminders(): Promise<{ count: number; next: Date | null }> {
+  const all = await Notifications.getAllScheduledNotificationsAsync();
+  const times = all
+    .map((n) => (n.trigger && 'value' in n.trigger ? Number(n.trigger.value) : NaN))
+    .filter((t) => !Number.isNaN(t))
+    .sort((a, b) => a - b);
+  return { count: all.length, next: times.length ? new Date(times[0]) : null };
+}
+
 /**
  * Re-plan the next week of reminders, skipping check-ins that are already filled.
  * Runs one at a time: two overlapping runs (say, on launch and right after a save) could

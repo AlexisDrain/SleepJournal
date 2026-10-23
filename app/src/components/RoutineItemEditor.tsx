@@ -73,6 +73,15 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
           {error && <Text style={{ color: colors.danger }}>{error}</Text>}
           <Button title="Save" busy={busy} color={accent} disabled={!label.trim()}
             onPress={run({ label: label.trim(), kind, phase })} />
+          {/* Another way to change the order, besides dragging ≡ in the list. */}
+          <View style={{ flexDirection: 'row', gap: space.md }}>
+            {([[-1, '▲ Move up'], [1, '▼ Move down']] as const).map(([dir, title]) => (
+              <View key={dir} style={{ flex: 1 }}>
+                <Button title={title} small color={colors.chip} textColor={colors.text}
+                  onPress={() => item && store.routine.move(item.id, dir).then(() => { requestSync(); onSaved(); }, (e) => setError((e as Error).message))} />
+              </View>
+            ))}
+          </View>
           <View style={{ flexDirection: 'row', gap: space.md }}>
             <View style={{ flex: 1 }}>
               <Button title="Hide item" small color={colors.chip} textColor={colors.danger} onPress={run({ archived: true })} />

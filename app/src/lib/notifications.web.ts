@@ -20,3 +20,6 @@ export async function getReminders(): Promise<Partial<Record<Phase, Reminder>>> 
 export async function setReminder(_r: Reminder): Promise<void> {}
 export async function clearReminder(_phase: Phase): Promise<void> {}
 export async function syncReminders(): Promise<void> {}
+export async function plannedReminders(): Promise<{ count: number; next: Date | null }> {
+  return { count: 0, next: null };
+}

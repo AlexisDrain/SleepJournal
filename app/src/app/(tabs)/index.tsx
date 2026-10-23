@@ -8,6 +8,8 @@ import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable,
 import { CalendarSheet } from '@/components/CalendarSheet';
 import { Panel } from '@/components/Panel';
 import { SyncChip } from '@/components/SyncChip';
+import { SyncLine } from '@/components/SyncLine';
+import { useSheetSync } from '@/lib/useSync';
 import { TagManager } from '@/components/TagManager';
 import { LatencyPicker, NightSwitcher, RESTED_LABELS, RestedScale, TagPicker } from '@/components/inputs';
 import { NapsCard } from '@/components/NapsCard';
@@ -190,6 +192,7 @@ export default function JournalScreen() {
                     : filledNow('bedtime') && !filledNow('morning') ? 'morning' : 'bedtime');
                 }} />
             </View>
+            <SyncLine />
             {missedBanner && (
               <MissedBanner phase={start.open}
                 onSkip={() => openAt({ nightOf: due.nightOf, open: due.phase })}
@@ -294,7 +297,7 @@ function bedtimeSteps({ nightOf, draft, usual, combine }: FieldProps): Step[] {
     id: 'note',
     question: 'Anything to note before sleeping?',
     label: 'Note',
-    body: <Input multiline placeholder="e.g. must wake up at 8 am for ✈️"
+    body: <Input multiline placeholder="e.g. must wake up at 8 am for ✈️, or leave blank"
       value={draft.get('bedtimeNote') ?? ''} onChangeText={(t) => draft.set('bedtimeNote', t || null)} />,
   };
   if (combine.bed) {
@@ -391,7 +394,7 @@ function morningSteps({ nightOf, draft, rested, usual, combine }: FieldProps): S
       id: 'dream',
       question: 'Do you remember a dream?',
       label: 'Dream',
-      body: <Input multiline placeholder="What do you remember? (or “don't remember”)"
+      body: <Input multiline placeholder="Leave blank if you don't remember"
         value={draft.get('dream') ?? ''} onChangeText={(t) => draft.set('dream', t || null)} />,
     },
     {
@@ -527,6 +530,14 @@ function Section({ phase, expanded, collapsible, filled, onToggle, summary, hint
 }
 
 function MissedBanner({ phase, onSkip, skipLabel }: { phase: Phase; onSkip: () => void; skipLabel: string | null }) {
+  // With a Google Sheet connected, the check-in may already be filled in on another device and not
+  // here yet: say so while syncing, and confirm once the sync has finished.
+  const { connected, status } = useSheetSync();
+  const which = phase === 'bedtime' ? 'Last night' : 'This morning';
+  const syncNote = !connected ? null
+    : status === 'syncing' || status === 'idle' ? 'Syncing now. If you filled it in on another device, please wait a moment.'
+    : status === 'done' ? `Sync complete. ${which} is confirmed not filled in.`
+    : "Couldn't sync, so it may already be filled in on another device.";
   return (
     <View style={{
       backgroundColor: colors.card, borderRadius: radius, borderWidth: 1, borderColor: colors.morning + '66',
@@ -536,6 +547,7 @@ function MissedBanner({ phase, onSkip, skipLabel }: { phase: Phase; onSkip: () =
         {phase === 'bedtime' ? "You didn't fill in last night's bedtime." : "You didn't fill in this morning."} Fill it in
         while you still remember.
       </Text>
+      {syncNote && <Muted>{syncNote}</Muted>}
       {skipLabel && (
         <Pressable onPress={onSkip} hitSlop={8}>
           <Text style={{ color: colors.night, fontWeight: '600' }}>{skipLabel}</Text>

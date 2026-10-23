@@ -12,7 +12,9 @@ import { ExportSheet } from '@/components/ExportSheet';
 import { Button, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { buildTable } from '@/db/csv';
 import type { ColumnGroup, SheetColumn, SheetValue } from '@/db/xlsx';
-import { loadExcluded, loadFillGaps, loadRoutineDetail } from '@/lib/exportPrefs';
+import { arrangeColumns, loadColumnOrder, loadExcluded, loadFillGaps, loadRoutineDetail, saveColumnOrder, TEXT_COLUMNS } from '@/lib/exportPrefs';
+import { Panel } from '@/components/Panel';
+import { SortableList } from '@/components/SortableList';
 import { colors, space, tints } from '@/lib/theme';
 import { useThemeName } from '@/lib/displayMode';
 
@@ -36,6 +38,8 @@ export default function SheetScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
+  const [ordering, setOrdering] = useState(false);
+  const [reading, setReading] = useState<{ title: string; night: string; text: string } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -43,8 +47,11 @@ export default function SheetScreen() {
       // The Sheet tab's own column choices (the "Column settings" button), saved separately from the export ones.
       const [exclude, routineDetail, fillGaps] = await Promise.all([loadExcluded('sheet'), loadRoutineDetail('sheet'), loadFillGaps('sheet')]);
       const t = await buildTable({ exclude, routineDetail, fillGaps, plainHeaders: true });
-      setColumns(t.columns);
-      setAllRows(t.rows); // oldest first, as in the Google Sheet
+      // The Sheet tab's own column order (only how it's shown; the data and exports don't change).
+      const order = arrangeColumns(t.columns.map((c) => c.header), await loadColumnOrder());
+      const at = order.map((h) => t.columns.findIndex((c) => c.header === h));
+      setColumns(at.map((i) => t.columns[i]));
+      setAllRows(t.rows.map((r) => at.map((i) => r[i]))); // oldest first, as in the Google Sheet
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -161,6 +168,7 @@ export default function SheetScreen() {
           </Muted>
         </View>
         <Button title="Column settings" small onPress={() => setChoosing(true)} color={colors.chip} textColor={colors.text} />
+        <Button title="Column order" small onPress={() => setOrdering(true)} color={colors.chip} textColor={colors.text} />
       </View>
       {error && <View style={{ paddingHorizontal: space.lg }}><ErrorBox message={error} onRetry={load} /></View>}
       {years.length > 1 && (
@@ -224,7 +232,13 @@ export default function SheetScreen() {
                           width: widthOf(c), backgroundColor: TINT[c.group][1], justifyContent: 'center', paddingHorizontal: 8,
                           borderRightWidth: 1, borderRightColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.bg,
                         }}>
-                          {i > 0 && <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13 }}>{item[i] ?? ''}</Text>}
+                          {i > 0 && (TEXT_COLUMNS.includes(c.header) && item[i]
+                            // Notes, dreams and tags are often longer than the cell: tap to read all of it.
+                            ? <Pressable onPress={() => setReading({ title: c.header, night: String(item[0] ?? ''), text: String(item[i]) })}
+                                accessibilityRole="button" accessibilityLabel={`Read ${c.header}`}>
+                                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, textDecorationLine: 'underline', textDecorationColor: colors.muted }}>{item[i]}</Text>
+                              </Pressable>
+                            : <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13 }}>{item[i] ?? ''}</Text>)}
                         </View>
                       ))}
                       {pinned(String(item[0] ?? ''), TINT[columns[0].group][1], ROW_HEIGHT, false)}
@@ -238,6 +252,34 @@ export default function SheetScreen() {
           {more.left && <EdgeArrow side="left" inset={pinnedWidth} onPress={() => jump(-1)} />}
         </View>
       )}
+
+      <Panel visible={reading !== null} onClose={() => setReading(null)}>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>{reading?.title}</Text>
+        <Muted>Night of {reading?.night}</Muted>
+        <ScrollView style={{ flexGrow: 0, flexShrink: 1 }}>
+          <Text selectable style={{ color: colors.text, fontSize: 16, lineHeight: 24 }}>{reading?.text}</Text>
+        </ScrollView>
+        <Button title="Close" small onPress={() => setReading(null)} color={colors.chip} textColor={colors.text} />
+      </Panel>
+
+      <Panel visible={ordering} onClose={() => setOrdering(false)}>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>Column order</Text>
+        <Muted>Drag ≡ to change the order of the columns here. Only this tab changes; your data, exports and Google Sheet stay as they are.</Muted>
+        <ScrollView style={{ flexGrow: 0, flexShrink: 1 }}>
+          <SortableList items={columns.slice(1).map((c) => c.header)} keyOf={(h) => h}
+            onReorder={(next) => { saveColumnOrder(next).then(load, () => {}); }}
+            renderItem={(h) => <Text style={{ color: colors.text, fontSize: 15, paddingVertical: 8 }}>{h}</Text>} />
+        </ScrollView>
+        <View style={{ flexDirection: 'row', gap: space.md }}>
+          <View style={{ flex: 1 }}>
+            <Button title="Reset order" small color={colors.chip} textColor={colors.text}
+              onPress={() => { saveColumnOrder(null).then(load, () => {}); }} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button title="Done" small onPress={() => setOrdering(false)} />
+          </View>
+        </View>
+      </Panel>
 
       <ExportSheet mode="view" visible={choosing} onError={setError}
         onClose={() => {

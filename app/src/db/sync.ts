@@ -233,10 +233,30 @@ let running: Promise<{ pushed: number; pulled: number }> | null = null;
 
 /** Push then pull. Concurrent calls share one run. */
 export function syncNow(): Promise<{ pushed: number; pulled: number }> {
-  running ??= runSync().finally(() => {
-    running = null;
-  });
+  if (!running) {
+    setStatus('syncing');
+    running = runSync().then(
+      (r) => { setStatus('done'); return r; },
+      (e) => { setStatus('failed'); throw e; },
+    ).finally(() => {
+      running = null;
+    });
+  }
   return running;
+}
+
+/** What the sync is doing this session: 'idle' until the first one starts. */
+export type SyncStatus = 'idle' | 'syncing' | 'done' | 'failed';
+let status: SyncStatus = 'idle';
+const statusListeners = new Set<() => void>();
+function setStatus(next: SyncStatus) {
+  status = next;
+  statusListeners.forEach((fn) => fn());
+}
+export const getSyncStatus = () => status;
+export function onSyncStatus(fn: () => void): () => void {
+  statusListeners.add(fn);
+  return () => statusListeners.delete(fn);
 }
 
 async function runSync() {
