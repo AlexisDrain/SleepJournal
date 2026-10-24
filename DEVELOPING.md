@@ -19,7 +19,7 @@ trailer/          the animated trailer page
 ## Run it
 
 You need Node 22+, and **Expo Go** on your phone, signed in to the same free Expo account as the
-CLI (required on physical iPhones since SDK 57).
+CLI (required on physical iPhones since SDK 57; the project is on SDK 58).
 
 ```bash
 cd app
@@ -52,7 +52,7 @@ npm run release        # new build number, then web (EAS Hosting) + phone (EAS U
 `npm run release:web` publishes only the web version (new build number); `npm run release:phone`
 sends that same build to the phone. **Settings → About** shows the version and build number.
 
-`app.json` uses `"runtimeVersion": { "policy": "sdkVersion" }`, which resolves to `exposdk:57.0.0`,
+`app.json` uses `"runtimeVersion": { "policy": "sdkVersion" }`, which resolves to `exposdk:58.0.0`,
 the runtime Expo Go has. Since May 2026, Expo Go only opens EAS Updates from projects your own Expo
 account owns, so other people need a build:
 

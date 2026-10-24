@@ -6,7 +6,7 @@
 // The date column stays put while the rest scrolls sideways, and edge arrows show (and jump to)
 // the columns that are off screen, so it's clear on a phone that there is more to the right.
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, Animated, FlatList, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { ExportSheet } from '@/components/ExportSheet';
 import { Button, Chip, ErrorBox, Muted, styles } from '@/components/ui';
@@ -88,7 +88,7 @@ export default function SheetScreen() {
   }, [opened, year, rows.length]);
 
   // ---------- sideways scrolling ----------
-  const scroller = useRef<ScrollView>(null);
+  const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
   const scrollX = useRef(new Animated.Value(0)).current; // drives the pinned date column
   const offset = useRef(0);
   // How wide the table's window is. Measured when the platform reports it (layout or scroll
