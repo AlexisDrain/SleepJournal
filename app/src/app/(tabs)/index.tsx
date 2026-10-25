@@ -8,7 +8,7 @@ import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable,
 import { CalendarSheet } from '@/components/CalendarSheet';
 import { Panel } from '@/components/Panel';
 import { SyncChip } from '@/components/SyncChip';
-import { SyncLine } from '@/components/SyncLine';
+import { joinStatus, useSyncText } from '@/components/SyncLine';
 import { useSheetSync } from '@/lib/useSync';
 import { TagManager } from '@/components/TagManager';
 import { LatencyPicker, NightSwitcher, RESTED_LABELS, RestedScale, TagPicker } from '@/components/inputs';
@@ -17,7 +17,7 @@ import { TimeField } from '@/components/TimeField';
 import { Button, Chip, ErrorBox, Input, Muted, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
-import { dueSlot, isFilled, loadUsualTimes, pickStart, untilHint, usualTimes, wakeTimeProblem, type Start, type UsualTimes } from '@/lib/journal';
+import { bedtimeProblem, negativeSleep, dueSlot, isFilled, loadUsualTimes, pickStart, untilHint, usualTimes, wakeTimeProblem, type Start, type UsualTimes } from '@/lib/journal';
 import { loadJournalMode, saveJournalMode, type JournalMode } from '@/lib/journalMode';
 import { syncReminders } from '@/lib/notifications';
 import { colors, radius, space } from '@/lib/theme';
@@ -192,7 +192,6 @@ export default function JournalScreen() {
                     : filledNow('bedtime') && !filledNow('morning') ? 'morning' : 'bedtime');
                 }} />
             </View>
-            <SyncLine />
             {missedBanner && (
               <MissedBanner phase={start.open}
                 onSkip={() => openAt({ nightOf: due.nightOf, open: due.phase })}
@@ -293,6 +292,18 @@ function bedtimeSteps({ nightOf, draft, usual, combine }: FieldProps): Step[] {
   const accent = colors.night;
   const inBed = draft.get('inBedAt');
   const tried = draft.get('triedSleepAt');
+  /** A note under a bedtime that's in the morning (AM/PM slip), with a button to make it the evening. */
+  const morningBedtime = (time: string | null, apply: (fix: string) => void) => {
+    const p = bedtimeProblem(time);
+    return p && (
+      <TimeWarning>
+        {formatClock(time)} is the morning after this night. Did you mean {formatClock(p.fix)}?{'\n'}
+        <Text style={{ color: colors.night, fontWeight: '700' }} onPress={() => apply(p.fix)} accessibilityRole="button">
+          Change to {formatClock(p.fix)}
+        </Text>
+      </TimeWarning>
+    );
+  };
   const note: Step = {
     id: 'note',
     question: 'Anything to note before sleeping?',
@@ -310,6 +321,10 @@ function bedtimeSteps({ nightOf, draft, usual, combine }: FieldProps): Step[] {
             draft.set('inBedAt', v);
             draft.set('triedSleepAt', v);
           }} />,
+        after: morningBedtime(inBed ?? tried, (fix) => {
+          draft.set('inBedAt', fix);
+          draft.set('triedSleepAt', fix);
+        }),
       },
       note,
     ];
@@ -320,6 +335,7 @@ function bedtimeSteps({ nightOf, draft, usual, combine }: FieldProps): Step[] {
       question: 'When did you get in bed?',
       body: <TimeField label="Got in bed" nightOf={nightOf} phase="bedtime" accent={accent} usual={usual.inBedAt}
         value={inBed} onChange={(v) => draft.set('inBedAt', v)} />,
+      after: morningBedtime(inBed, (fix) => draft.set('inBedAt', fix)),
     },
     {
       id: 'tried',
@@ -328,7 +344,7 @@ function bedtimeSteps({ nightOf, draft, usual, combine }: FieldProps): Step[] {
       body: <TimeField label="Trying to sleep" nightOf={nightOf} phase="bedtime" accent={accent}
         usual={inBed ? clockOf(inBed) : usual.triedSleepAt}
         value={tried} onChange={(v) => draft.set('triedSleepAt', v)} />,
-      after: inBed && tried && Date.parse(inBed) > Date.parse(tried) && (
+      after: morningBedtime(tried, (fix) => draft.set('triedSleepAt', fix)) || inBed && tried && Date.parse(inBed) > Date.parse(tried) && (
         <TimeWarning>
           Got in bed ({formatClock(inBed)}) is after you started trying to sleep ({formatClock(tried)}). Check the times
           and AM / PM.
@@ -351,6 +367,8 @@ function morningSteps({ nightOf, draft, rested, usual, combine }: FieldProps): S
   const selectedTags = draft.get('tags') ?? [];
   const suggestInsomnia = latency !== null && latency > 180 && !selectedTags.includes('insomnia');
   const problem = wakeTimeProblem(draft.get('triedSleepAt') ?? draft.get('inBedAt'), woke);
+  // Only when the wake time itself looks fine: then it's the bedtime or the time to fall asleep.
+  const minus = problem ? null : negativeSleep(draft.get('triedSleepAt') ?? draft.get('inBedAt'), woke, latency);
   return [
     {
       id: 'woke',
@@ -359,6 +377,12 @@ function morningSteps({ nightOf, draft, rested, usual, combine }: FieldProps): S
         <>
           <TimeField label={combine.morning ? 'Got up' : 'Woke up'} nightOf={nightOf} phase="morning" accent={accent} usual={usual.wokeAt}
             value={woke} onChange={setWoke} />
+          {minus !== null && (
+            <TimeWarning>
+              That makes {minus} hours asleep: waking up before falling asleep. Check the bedtime (AM / PM) and
+              "Took to fall asleep".
+            </TimeWarning>
+          )}
           {problem && (
             <View style={{ backgroundColor: colors.bg, borderRadius: 8, borderWidth: 1, borderColor: colors.danger + '88', padding: space.md, gap: space.sm }}>
               <Text style={{ color: colors.text }}>
@@ -558,6 +582,7 @@ function MissedBanner({ phase, onSkip, skipLabel }: { phase: Phase; onSkip: () =
 }
 
 function SaveLine({ status, dirty, error, onRetry }: { status: SaveStatus; dirty: boolean; error: string | null; onRetry: () => void }) {
+  const sync = useSyncText(); // "Last synced …", when a Google Sheet is connected
   if (status === 'error') {
     return (
       <Pressable onPress={onRetry} style={{ alignItems: 'center', marginBottom: space.md }}>
@@ -565,7 +590,7 @@ function SaveLine({ status, dirty, error, onRetry }: { status: SaveStatus; dirty
       </Pressable>
     );
   }
-  const text = status === 'saving' || dirty ? 'Saving…' : status === 'saved' ? 'Saved ✓' : 'Changes save automatically';
+  const text = joinStatus(status === 'saving' || dirty ? 'Saving…' : status === 'saved' ? 'Saved ✓' : 'Changes save automatically', sync);
   return <Text style={{ color: colors.muted, textAlign: 'center', marginTop: -space.sm, marginBottom: space.md, fontSize: 13 }}>{text}</Text>;
 }
 

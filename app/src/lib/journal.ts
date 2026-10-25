@@ -121,6 +121,27 @@ export async function loadUsualTimes(): Promise<UsualTimes> {
 const MAX_SLEEP_HOURS = 16;
 
 /**
+ * A bedtime between 6 AM and 3 PM is almost always an AM/PM slip: it lands on the morning after
+ * the night. Returns the evening time it most likely should be (12 hours earlier), or null.
+ */
+export function bedtimeProblem(time: string | null): { fix: string } | null {
+  if (!time) return null;
+  const hour = clockOf(time).hour;
+  if (hour < 6 || hour >= 15) return null;
+  return { fix: toLocalIso(new Date(Date.parse(time) - 12 * 3_600_000)) };
+}
+
+/**
+ * Hours asleep as the spreadsheet works them out (woke − started trying − time to fall asleep),
+ * when that comes out below zero: you'd have woken up before falling asleep. Otherwise null.
+ */
+export function negativeSleep(sleepStart: string | null, woke: string | null, latencyMin: number | null): number | null {
+  if (!sleepStart || !woke) return null;
+  const hours = (Date.parse(woke) - Date.parse(sleepStart)) / 3_600_000 - (latencyMin ?? 0) / 60;
+  return hours < 0 ? Math.round(hours * 100) / 100 : null;
+}
+
+/**
  * Catches AM/PM slips: if the wake time is before you went to sleep, or more than 16 hours after,
  * returns how long that would be and, when moving it 12 hours makes sense, the corrected time.
  */

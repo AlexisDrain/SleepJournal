@@ -238,7 +238,7 @@ export default function SheetScreen() {
                                 accessibilityRole="button" accessibilityLabel={`Read ${c.header}`}>
                                 <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, textDecorationLine: 'underline', textDecorationColor: colors.muted }}>{item[i]}</Text>
                               </Pressable>
-                            : <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13 }}>{item[i] ?? ''}</Text>)}
+                            : <Text numberOfLines={1} style={{ color: typeof item[i] === 'number' && (item[i] as number) < 0 ? colors.danger : colors.text, fontSize: 13 }}>{item[i] ?? ''}</Text>)}
                         </View>
                       ))}
                       {pinned(String(item[0] ?? ''), TINT[columns[0].group][1], ROW_HEIGHT, false)}

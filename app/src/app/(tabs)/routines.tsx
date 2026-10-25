@@ -12,7 +12,7 @@ import { NightSwitcher, Routine } from '@/components/inputs';
 import { KIND_LABEL, RoutineItemEditor } from '@/components/RoutineItemEditor';
 import { TagManager } from '@/components/TagManager';
 import { SyncChip } from '@/components/SyncChip';
-import { SyncLine } from '@/components/SyncLine';
+import { joinStatus, useSyncText } from '@/components/SyncLine';
 import { SortableList } from '@/components/SortableList';
 import { Button, Card, Chip, ErrorBox, Input, Muted, Row, styles } from '@/components/ui';
 import { store } from '@/db/store';
@@ -51,6 +51,7 @@ export default function RoutinesScreen() {
   const [anyValues, setAnyValues] = useState<Record<string, RoutineValue>>({});
   const [calendarOpen, setCalendarOpen] = useState(false);
   const wide = useWide();
+  const syncText = useSyncText(); // "Last synced …", when a Google Sheet is connected
   useHour24(); // redraw the times if the 12/24-hour setting changes
   const [phases, swapPhases] = usePhaseOrder('routines'); // Bedtime first, or Morning first if you swapped them
   const lists: RoutinePhase[] = [...phases, 'anytime'];
@@ -156,7 +157,7 @@ export default function RoutinesScreen() {
         {/* One short line and then the buttons, spaced exactly like the Journal's "Changes save
             automatically" line, so the buttons sit at the same height on both tabs. */}
         <Text style={{ color: colors.muted, textAlign: 'center', marginTop: editMode ? 0 : -space.sm, marginBottom: space.md, fontSize: 13 }}>
-          {editMode ? 'Tap an item to rename or hide it. Drag ≡ to change the order.' : 'Ticks save automatically'}
+          {editMode ? 'Tap an item to rename or hide it. Drag ≡ to change the order.' : joinStatus('Ticks save automatically', syncText)}
         </Text>
         <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: space.md, marginBottom: space.md }}>
           {/* Swaps Bedtime and Morning on this screen only. The data doesn't change. */}
@@ -164,7 +165,6 @@ export default function RoutinesScreen() {
           {!editMode && <SyncChip />}
           <Chip label={editMode ? 'Done' : 'Edit'} selected={editMode} onPress={() => setEditMode((v) => !v)} />
         </View>
-        {!editMode && <SyncLine />}
 
         {!loaded && !error && <ActivityIndicator color={colors.night} style={{ marginBottom: space.md }} />}
         <View style={[wide ? { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' } : undefined, !loaded && { opacity: 0 }]}>

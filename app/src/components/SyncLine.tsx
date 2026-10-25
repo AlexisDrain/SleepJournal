@@ -1,8 +1,6 @@
-// "Last synced today, 3:41 PM" under the Sync button (Journal and Routines). The time is this
-// device's own last sync. Shows nothing when no Google Sheet is connected.
-import { Text } from 'react-native';
+// The sync part of the status line under the date: "Last synced today, 3:41 PM". The time is this
+// device's own last sync. Nothing when no Google Sheet is connected.
 import { useSheetSync } from '@/lib/useSync';
-import { colors, space } from '@/lib/theme';
 import { addDays, formatClock, shortDate, toDateString } from '@/lib/time';
 
 export function lastSyncedLabel(iso: string): string {
@@ -12,15 +10,14 @@ export function lastSyncedLabel(iso: string): string {
   return `Last synced ${when}, ${formatClock(iso)}`;
 }
 
-export function SyncLine() {
+/** The text to add after "Saved ✓" (Journal) or "Ticks save automatically" (Routines), or null. */
+export function useSyncText(): string | null {
   const { connected, lastSyncAt, status } = useSheetSync();
   if (!connected) return null;
-  const text = status === 'syncing' ? 'Syncing…'
-    : status === 'failed' ? 'Last sync failed (see Settings → Google Sheet)'
+  return status === 'syncing' ? 'Syncing…'
+    : status === 'failed' ? 'Last sync failed'
     : lastSyncAt ? lastSyncedLabel(lastSyncAt) : 'Not synced yet';
-  return (
-    <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: -space.sm, marginBottom: space.md }}>
-      {text}
-    </Text>
-  );
 }
+
+/** Joins the parts of the status line with a dot. */
+export const joinStatus = (...parts: (string | null)[]) => parts.filter(Boolean).join('  ·  ');
