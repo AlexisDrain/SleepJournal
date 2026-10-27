@@ -5,7 +5,8 @@
 //   node scripts/release.js web      web only, new build number
 //   node scripts/release.js phone    phone only, SAME build number (to match what is already on the web)
 //
-// "phone" publishes an EAS Update on the preview channel, which Expo Go picks up.
+// "phone" publishes an EAS Update on the preview channel (Expo Go) and the production channel
+// (the installed app from TestFlight, the App Store or Google Play).
 const { execSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -36,6 +37,9 @@ if (target !== 'phone') {
   run('npx eas-cli@latest deploy --prod --non-interactive');
 }
 if (target !== 'web') {
-  run(`npx eas-cli@latest update --channel preview --environment preview --message "Build ${info.build}" --non-interactive`);
+  // preview: Expo Go. production: the installed app (TestFlight / App Store, Google Play).
+  for (const channel of ['preview', 'production']) {
+    run(`npx eas-cli@latest update --channel ${channel} --environment ${channel} --message "Build ${info.build}" --non-interactive`);
+  }
 }
 console.log(`\nPublished build ${info.build} (${target}).`);
