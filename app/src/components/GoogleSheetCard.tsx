@@ -2,7 +2,8 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
-import { connect, disconnect, getConnection, getSyncState, LATEST_SCRIPT_VERSION, syncNow, type SyncState } from '@/db/sync';
+import { connect, disconnect, getConnection, getSyncState, LATEST_SCRIPT_VERSION, syncNow, type Connection, type SyncState } from '@/db/sync';
+import { ConnectionDetails } from './ConnectionDetails';
 import { SHEET_GUIDE_URL, SHEET_TEMPLATE_URL } from '@/lib/links';
 import { confirmAction } from '@/lib/confirm';
 import { colors, space } from '@/lib/theme';
@@ -17,7 +18,8 @@ function ago(iso: string): string {
 }
 
 export function GoogleSheetCard() {
-  const [connected, setConnected] = useState(false);
+  const [connection, setConnection] = useState<Connection | null>(null);
+  const connected = connection !== null;
   const [state, setState] = useState<SyncState | null>(null);
   const [url, setUrl] = useState('');
   const [key, setKey] = useState('');
@@ -26,7 +28,7 @@ export function GoogleSheetCard() {
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
 
   const load = useCallback(async () => {
-    setConnected(!!(await getConnection()));
+    setConnection(await getConnection());
     setState(await getSyncState());
   }, []);
   useFocusEffect(useCallback(() => void load(), [load]));
@@ -96,6 +98,7 @@ export function GoogleSheetCard() {
             <Button title="Open sheet ↗" small color={colors.chip} textColor={colors.text}
               onPress={() => Linking.openURL(state.sheetUrl!).catch(() => {})} />
           )}
+          {connection && <ConnectionDetails connection={connection} />}
           <Button title="Disconnect" onPress={onDisconnect} small color={colors.chip} textColor={colors.text} />
         </>
       ) : (
