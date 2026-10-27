@@ -9,6 +9,7 @@ import { pickAndImportCsv } from '@/db/csv';
 import buildInfo from '@/lib/buildInfo.json';
 import { requestSync, resendAllNights } from '@/db/sync';
 import { setCombine, useCombine } from '@/lib/advanced';
+import { formatSheetDate, setDateStyle, setMondayFirst, useDateStyle, useMondayFirst, type DateStyle } from '@/lib/localePrefs';
 import { setHour24, useHour24 } from '@/lib/clockFormat';
 import { DAY_ENDS, DAY_STARTS, setDisplayMode, useDisplayMode, type DisplayMode } from '@/lib/displayMode';
 import { formatHour } from '@/lib/clockFormat';
@@ -26,6 +27,7 @@ const DEFAULT_REMINDER: Record<Phase, Reminder> = {
   morning: { phase: 'morning', hour: 10, minute: 0 },
 };
 const PHASE_NAME: Record<Phase, string> = { bedtime: 'Bedtime', morning: 'Morning' };
+const DATE_STYLES: [DateStyle, string][] = [['ymd', 'year-month-day'], ['mdy', 'month-day-year (US)'], ['dmy', 'day-month-year']];
 const DISPLAY_MODES: [DisplayMode, string][] = [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Light by day, dark at night']];
 const PHASE_COLOR: Record<Phase, string> = { get bedtime() { return colors.night; }, get morning() { return colors.morning; } };
 
@@ -39,6 +41,8 @@ export default function SettingsScreen() {
   const hour24 = useHour24();
   const display = useDisplayMode();
   const combine = useCombine();
+  const mondayFirst = useMondayFirst();
+  const dateStyle = useDateStyle();
 
   const load = useCallback(async () => {
     setError(null);
@@ -98,7 +102,7 @@ export default function SettingsScreen() {
         )}
       </Card>}
 
-      <Card title="Clock">
+      <Card title="Locale">
         <Row label="24-hour time">
           <Switch value={hour24} trackColor={{ true: colors.night }}
             onValueChange={(v) => {
@@ -111,6 +115,10 @@ export default function SettingsScreen() {
           {hour24 ? '23:30 instead of 11:30 PM.' : '11:30 PM instead of 23:30.'} Used everywhere in the app, in exports and in
           your Google Sheet. It started as your region's style.
         </Muted>
+        <Row label="Week starts on Monday">
+          <Switch value={mondayFirst} trackColor={{ true: colors.night }} onValueChange={(v) => void setMondayFirst(v)} />
+        </Row>
+        <Muted>{mondayFirst ? 'The calendar starts each week on Monday.' : 'The calendar starts each week on Sunday.'} It started as your region's usual day.</Muted>
       </Card>
 
       <GoogleSheetCard />
@@ -139,6 +147,17 @@ export default function SettingsScreen() {
         <Muted>
           The Journal asks one time instead of two. It's saved in both columns, so the spreadsheet and
           hours asleep keep working.
+        </Muted>
+        <Text style={{ color: colors.text, fontSize: 16, marginTop: space.sm }}>Dates in spreadsheets</Text>
+        <View style={styles.chips}>
+          {DATE_STYLES.map(([style, label]) => (
+            <Chip key={style} label={`${formatSheetDate('2026-10-23', style)} · ${label}`} selected={dateStyle === style}
+              onPress={() => void setDateStyle(style)} />
+          ))}
+        </View>
+        <Muted>
+          For exports, CSV import and the Sheet tab. Your Google Sheet always uses year-month-day: syncing
+          finds each night by its date, and that's the one style that can't be read two ways.
         </Muted>
       </Card>
 

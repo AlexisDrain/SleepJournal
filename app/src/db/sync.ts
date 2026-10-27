@@ -279,7 +279,8 @@ async function runSync() {
 
     // push: nights changed here. If the layout changed (fields shown/hidden, routine items), send
     // every night once so hidden columns and the routine summaries are brought up to date.
-    const layout = JSON.stringify((await sheetPayload([], options)).columns);
+    // ("dates:ymd" was added when the sheet's dates became year-month-day: one full resend rewrote them.)
+    const layout = JSON.stringify((await sheetPayload([], options)).columns) + '|dates:ymd';
     const full = layout !== state.layout;
     const changed = entries
       .filter((e) => full || e.updatedAt > state.lastPushed)

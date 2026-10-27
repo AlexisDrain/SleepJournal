@@ -28,7 +28,7 @@ const TINT: Record<ColumnGroup, [string, string]> = {
 };
 const widthOf = (c: SheetColumn) => Math.max(72, Math.round(c.width * 8.5));
 
-const yearOf = (row: SheetValue[]) => String(row[0] ?? '').slice(-4);
+const yearOf = (row: SheetValue[]) => String(row[0] ?? '').match(/\d{4}/)?.[0] ?? '';
 
 export default function SheetScreen() {
   const theme = useThemeName(); // redraw when the display changes

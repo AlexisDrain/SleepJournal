@@ -306,7 +306,14 @@ const routine = {
   },
 };
 
+/** The years that have at least one night, oldest first ("2025", "2026"…). */
+async function years(): Promise<string[]> {
+  const rows = await (await getDb()).getAllAsync<{ y: string }>(`SELECT DISTINCT substr(night_of, 1, 4) AS y FROM entries ORDER BY y`);
+  return rows.map((r) => r.y);
+}
+
 export const store = {
+  years,
   getEntry,
   listEntries,
   saveEntry,

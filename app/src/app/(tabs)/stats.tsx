@@ -1,8 +1,8 @@
 // Stats: the essentials of your sleep for a period: averages, a chart of hours asleep, the most
 // used tags, and night by night the times, tags and notes. Exportable on its own.
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 import { Button, Card, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { exportStats } from '@/db/csv';
 import { store } from '@/db/store';
@@ -11,7 +11,8 @@ import { useHour24 } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
 import { formatAfterMidnight, formatAfterNoon, summarize } from '@/lib/stats';
 import { colors, radius, space } from '@/lib/theme';
-import { addDays, currentNight, dayLabel, formatClock } from '@/lib/time';
+import { loadHiddenStatsColumns, saveHiddenStatsColumns } from '@/lib/statsPrefs';
+import { addDays, currentNight, dayLabel, formatClock, formatDuration } from '@/lib/time';
 import { page, useWide, WIDE_PAGE, NARROW_PAGE } from '@/lib/useLayout';
 import type { Entry } from '@/lib/types';
 
@@ -19,40 +20,58 @@ const PERIODS: { label: string; nights: number | null }[] = [
   { label: '7 nights', nights: 7 },
   { label: '30 nights', nights: 30 },
   { label: '90 nights', nights: 90 },
+  { label: '1 year', nights: 365 },
   { label: 'All', nights: null },
 ];
 const CHART_NIGHTS = 60; // more bars than this get too thin to read
 const CHART_HEIGHT = 120;
+const ROW_BATCH = 100; // rows a phone draws at a time in the night-by-night table
 
 export default function StatsScreen() {
   useThemeName(); // redraw when the display changes (dark / light)
   useHour24();
   const wide = useWide();
   const [period, setPeriod] = useState(1);
+  const [year, setYear] = useState<string | null>(null); // a calendar year instead of a period
+  const [years, setYears] = useState<string[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]); // newest first
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [hidden, setHidden] = useState<Set<string>>(new Set()); // columns switched off (saved on this device)
+  useEffect(() => { loadHiddenStatsColumns().then(setHidden, () => {}); }, []);
+  const toggle = (id: string) => {
+    const next = new Set(hidden);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setHidden(next);
+    saveHiddenStatsColumns(next).catch(() => {});
+  };
+  const cols = COLUMNS.filter((c) => !hidden.has(c.id));
 
-  const nights = PERIODS[period].nights;
-  const from = nights === null ? undefined : addDays(currentNight(), -(nights - 1));
+  const nights = year ? null : PERIODS[period].nights;
+  // A year: its nights from Jan 1 to Dec 31. A period: the last N nights up to tonight.
+  const from = year ? `${year}-01-01` : nights === null ? undefined : addDays(currentNight(), -(nights - 1));
+  const to = year ? `${year}-12-31` : undefined;
   const load = useCallback(async () => {
     setError(null);
     try {
-      setEntries(await store.listEntries({ from, limit: 100_000 }));
+      const [list, ys] = await Promise.all([store.listEntries({ from, to, limit: 100_000 }), store.years()]);
+      setEntries(list);
+      setYears(ys);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [from]);
+  }, [from, to]);
   useFocusEffect(useCallback(() => void load(), [load]));
   useEffect(() => onPulled(() => void load()), [load]);
 
   const exportAs = async (format: 'csv' | 'xlsx') => {
     setExporting(true);
     try {
-      await exportStats(format, from);
+      await exportStats(format, { from, to }, cols.flatMap((c) => c.exports));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -75,15 +94,21 @@ export default function StatsScreen() {
         </Card>
       )}
       <View style={[styles.chips, { justifyContent: 'center' }]}>
-        {PERIODS.map((p, i) => <Chip key={p.label} label={p.label} selected={i === period} onPress={() => setPeriod(i)} />)}
+        {PERIODS.map((p, i) => <Chip key={p.label} label={p.label} selected={!year && i === period} onPress={() => { setYear(null); setPeriod(i); }} />)}
       </View>
+      {/* One button per year with nights, to look back at a whole year on its own. */}
+      {years.length > 1 && (
+        <View style={[styles.chips, { justifyContent: 'center' }]}>
+          {years.map((y) => <Chip key={y} label={y} selected={year === y} color={colors.morning} onPress={() => setYear(y)} />)}
+        </View>
+      )}
       {error && <ErrorBox message={error} onRetry={load} />}
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.md }}>
         <Tile label="Hours asleep" value={s.avgHours === null ? '—' : `${s.avgHours} h`} note="average" color={colors.success} />
         <Tile label="Tried to sleep" value={s.avgTriedMin === null ? '—' : formatAfterNoon(s.avgTriedMin)} note="average" color={colors.night} />
         <Tile label="Started day" value={s.avgStartedMin === null ? '—' : formatAfterMidnight(s.avgStartedMin)} note="average" color={colors.morning} />
-        <Tile label="Nights" value={String(s.nights)} note={nights ? `of the last ${nights}` : 'recorded'} color={colors.muted} />
+        <Tile label="Nights" value={String(s.nights)} note={year ? `in ${year}` : nights ? `of the last ${nights}` : 'recorded'} color={colors.muted} />
       </View>
 
       <HoursChart entries={entries} average={s.avgHours} />
@@ -101,8 +126,14 @@ export default function StatsScreen() {
         <Button title="Export .xlsx" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('xlsx')} />
         <Button title="CSV" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('csv')} />
       </View>
-      <Muted>The export has these nights with hours asleep, tried to sleep, started day, tags and notes.</Muted>
-      {shown.length > 0 && <TableHeader wide={wide} />}
+      {/* Each column on or off: on screen and in the export alike. */}
+      <View style={styles.chips}>
+        {COLUMNS.map((c) => (
+          <Chip key={c.id} label={`${hidden.has(c.id) ? '☐' : '☑'} ${c.label}`} selected={!hidden.has(c.id)} onPress={() => toggle(c.id)} />
+        ))}
+      </View>
+      <Muted>Untick a column to hide it here and leave it out of the export. The export has the nights shown.</Muted>
+      {shown.length > 0 && (wide ? <TableHeader cols={cols} /> : <SwipeTable entries={shown} cols={cols} />)}
     </View>
   );
 
@@ -112,11 +143,12 @@ export default function StatsScreen() {
     <FlatList
       style={styles.screen}
       contentContainerStyle={[styles.scroll, page(wide ? WIDE_PAGE : NARROW_PAGE)]}
-      data={shown}
+      // Phones draw the whole table in the header (it scrolls sideways); wide screens list the rows.
+      data={wide ? shown : []}
       keyExtractor={(e) => e.nightOf}
       ListHeaderComponent={<View style={{ marginBottom: space.md }}>{header}</View>}
-      ListEmptyComponent={<Muted>{entries.length ? 'No times, tags or notes in this period yet.' : 'No nights in this period yet.'}</Muted>}
-      renderItem={({ item, index }) => <NightRow e={item} wide={wide} odd={index % 2 === 1} last={index === shown.length - 1} />}
+      ListEmptyComponent={shown.length ? undefined : <Muted>{entries.length ? 'No times, tags or notes in this period yet.' : 'No nights in this period yet.'}</Muted>}
+      renderItem={({ item, index }) => <NightRow e={item} cols={cols} odd={index % 2 === 1} last={index === shown.length - 1} />}
     />
   );
 }
@@ -166,61 +198,135 @@ function HoursChart({ entries, average }: { entries: Entry[]; average: number | 
 }
 
 // ---------- the night-by-night table ----------
-// Wide screens: one line per night, all six columns. Phones: the four short columns on the line,
-// with tags and notes on a second line underneath, so nothing has to scroll sideways.
+// Wide screens: columns share the width. Phones: columns keep a readable width and the table
+// scrolls sideways, with ‹ › arrows showing there's more.
 
-const COLS = { night: 1.4, hours: 0.7, tried: 1, started: 1, tags: 1.4, notes: 2.6 };
+interface Col {
+  id: string;
+  label: string;
+  /** Share of the width on wide screens. */
+  flex: number;
+  /** Width on phones (px). */
+  width: number;
+  right?: boolean;
+  /** The export columns this one stands for. */
+  exports: string[];
+  cell: (e: Entry) => { text: string; color?: string; bold?: boolean };
+}
+
+const NIGHT_COL = { flex: 1.3, width: 104 };
+const COLUMNS: Col[] = [
+  { id: 'hours', label: 'Hours asleep', flex: 0.8, width: 70, right: true, exports: ['Hours asleep'],
+    cell: (e) => ({ text: e.hoursAsleep === null ? '—' : String(e.hoursAsleep), bold: true,
+      color: e.hoursAsleep === null ? colors.muted : e.hoursAsleep < 0 ? colors.danger : colors.success }) },
+  { id: 'tried', label: 'Tried to sleep', flex: 1, width: 92, exports: ['Tried to sleep'],
+    cell: (e) => { const t = e.triedSleepAt ?? e.inBedAt; return { text: t ? formatClock(t) : '—' }; } },
+  { id: 'latency', label: 'To fall asleep', flex: 0.9, width: 92, exports: ['Minutes to fall asleep'],
+    cell: (e) => ({ text: e.sleepLatencyMin === null ? '—' : formatDuration(e.sleepLatencyMin) }) },
+  { id: 'started', label: 'Started day', flex: 1, width: 92, exports: ['Started day'],
+    cell: (e) => { const t = e.dayStartedAt ?? e.wokeAt; return { text: t ? formatClock(t) : '—' }; } },
+  { id: 'tags', label: 'Tags', flex: 1.4, width: 150, exports: ['Tags'],
+    cell: (e) => ({ text: e.tags.join(', '), color: colors.muted }) },
+  { id: 'notes', label: 'Notes', flex: 2.6, width: 260, exports: ['Bedtime note', 'Morning note'],
+    cell: (e) => ({ text: [e.bedtimeNote, e.morningNote].filter(Boolean).join(' · ') }) },
+];
+
 const cellText = { color: colors.text, fontSize: 14 } as const;
+const shortNight = (nightOf: string) => {
+  const [y, m, d] = nightOf.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+};
+/** Wide: share the width. Phone: a fixed width. */
+const sized = (c: { flex: number; width: number }, fixed: boolean) => (fixed ? { width: c.width } : { flex: c.flex });
 
-function TableHeader({ wide }: { wide: boolean }) {
-  const h = (label: string, flex: number, right?: boolean) => (
-    <Text style={[styles.cardTitle, { flex, fontSize: 11, textAlign: right ? 'right' : 'left' }]}>{label}</Text>
+function HeaderRow({ cols, fixed }: { cols: Col[]; fixed: boolean }) {
+  const h = (key: string, label: string, size: object, right?: boolean) => (
+    <Text key={key} style={[styles.cardTitle, size, { fontSize: 11, textAlign: right ? 'right' : 'left' }]}>{label}</Text>
   );
   return (
     <View style={{
-      flexDirection: 'row', gap: space.md, paddingHorizontal: space.md, paddingVertical: space.sm, marginTop: space.sm,
+      flexDirection: 'row', gap: space.md, paddingHorizontal: space.md, paddingVertical: space.sm,
       backgroundColor: colors.chip, borderTopLeftRadius: radius, borderTopRightRadius: radius,
     }}>
-      {h('Night', COLS.night)}
-      {h('Hours', COLS.hours, true)}
-      {h('Tried to sleep', COLS.tried)}
-      {h('Started day', COLS.started)}
-      {wide && h('Tags', COLS.tags)}
-      {wide && h('Notes', COLS.notes)}
+      {h('night', 'Night', sized(NIGHT_COL, fixed))}
+      {cols.map((c) => h(c.id, c.label, sized(c, fixed), c.right))}
     </View>
   );
 }
 
-function NightRow({ e, wide, odd, last }: { e: Entry; wide: boolean; odd: boolean; last: boolean }) {
-  const tried = e.triedSleepAt ?? e.inBedAt;
-  const started = e.dayStartedAt ?? e.wokeAt;
-  const notes = [e.bedtimeNote, e.morningNote].filter(Boolean).join(' · ');
-  const tags = e.tags.join(', ');
-  const [y, m, d] = e.nightOf.split('-').map(Number);
-  const night = new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+function TableHeader({ cols }: { cols: Col[] }) {
+  return <View style={{ marginTop: space.sm }}><HeaderRow cols={cols} fixed={false} /></View>;
+}
+
+function NightRow({ e, cols, odd, last, fixed = false }: { e: Entry; cols: Col[]; odd: boolean; last: boolean; fixed?: boolean }) {
   return (
     <View style={{
-      paddingHorizontal: space.md, paddingVertical: space.sm, gap: 4,
+      flexDirection: 'row', gap: space.md, alignItems: 'flex-start', paddingHorizontal: space.md, paddingVertical: space.sm,
       backgroundColor: odd ? colors.bg : colors.card,
       borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.cardBorder,
       ...(last ? { borderBottomLeftRadius: radius, borderBottomRightRadius: radius } : null),
     }}>
-      <View style={{ flexDirection: 'row', gap: space.md, alignItems: 'flex-start' }}>
-        <Text style={[cellText, { flex: COLS.night, fontWeight: '600' }]}>{night}</Text>
-        <Text style={[cellText, {
-          flex: COLS.hours, textAlign: 'right', fontVariant: ['tabular-nums'], fontWeight: '700',
-          color: e.hoursAsleep === null ? colors.muted : e.hoursAsleep < 0 ? colors.danger : colors.success,
-        }]}>{e.hoursAsleep === null ? '—' : e.hoursAsleep}</Text>
-        <Text style={[cellText, { flex: COLS.tried, fontVariant: ['tabular-nums'] }]}>{tried ? formatClock(tried) : '—'}</Text>
-        <Text style={[cellText, { flex: COLS.started, fontVariant: ['tabular-nums'] }]}>{started ? formatClock(started) : '—'}</Text>
-        {wide && <Text style={[cellText, { flex: COLS.tags, color: colors.muted }]}>{tags}</Text>}
-        {wide && <Text selectable style={[cellText, { flex: COLS.notes }]}>{notes}</Text>}
-      </View>
-      {!wide && (tags || notes) ? (
-        <Text selectable style={{ color: colors.muted, fontSize: 13 }}>
-          {tags ? <Text style={{ color: colors.text }}>{tags}</Text> : null}{tags && notes ? '  ·  ' : ''}{notes}
-        </Text>
-      ) : null}
+      <Text style={[cellText, sized(NIGHT_COL, fixed), { fontWeight: '600' }]}>{shortNight(e.nightOf)}</Text>
+      {cols.map((c) => {
+        const v = c.cell(e);
+        return (
+          <Text key={c.id} selectable={c.id === 'notes'} style={[cellText, sized(c, fixed), {
+            textAlign: c.right ? 'right' : 'left', fontVariant: ['tabular-nums'],
+            ...(v.color ? { color: v.color } : null), ...(v.bold ? { fontWeight: '700' as const } : null),
+          }]}>{v.text}</Text>
+        );
+      })}
     </View>
+  );
+}
+
+/** Phones: the table at readable column widths, scrolling sideways, with arrows to the hidden columns. */
+function SwipeTable({ entries, cols }: { entries: Entry[]; cols: Col[] }) {
+  // A phone draws every row of this table at once, so it shows them a batch at a time: a year or
+  // more of nights would otherwise make the tab slow to open.
+  const [limit, setLimit] = useState(ROW_BATCH);
+  const rows = entries.slice(0, limit);
+  const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
+  const [x, setX] = useState(0);
+  const [viewW, setViewW] = useState(0);
+  const contentW = space.md * 2 + NIGHT_COL.width + cols.reduce((sum, c) => sum + c.width + space.md, 0) + 2;
+  const more = { left: x > 8, right: viewW > 0 && x < contentW - viewW - 8 };
+  const jump = (dir: 1 | -1) => {
+    const next = Math.max(0, Math.min(contentW - viewW, x + dir * Math.max(120, viewW - 120)));
+    scroller.current?.scrollTo({ x: next, animated: true });
+    setX(next); // don't wait for the scroll event (browsers may skip it while animating)
+  };
+  return (
+    <View style={{ marginTop: space.sm }} onLayout={(e) => setViewW(e.nativeEvent.layout.width)}>
+      <ScrollView ref={scroller} horizontal persistentScrollbar scrollEventThrottle={32}
+        onScroll={(e) => setX(e.nativeEvent.contentOffset.x)}>
+        <View style={{ width: contentW }}>
+          <HeaderRow cols={cols} fixed />
+          {rows.map((e, i) => <NightRow key={e.nightOf} e={e} cols={cols} fixed odd={i % 2 === 1} last={i === rows.length - 1} />)}
+        </View>
+      </ScrollView>
+      {more.left && <Arrow side="left" onPress={() => jump(-1)} />}
+      {more.right && <Arrow side="right" onPress={() => jump(1)} />}
+      {entries.length > limit && (
+        <View style={{ marginTop: space.md }}>
+          <Button title={`Show ${Math.min(ROW_BATCH, entries.length - limit)} more (${entries.length - limit} left)`} small
+            color={colors.chip} textColor={colors.text} onPress={() => setLimit(limit + ROW_BATCH)} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function Arrow({ side, onPress }: { side: 'left' | 'right'; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} hitSlop={10} accessibilityRole="button"
+      accessibilityLabel={side === 'right' ? 'Show more columns to the right' : 'Show columns to the left'}
+      style={{
+        position: 'absolute', top: 2, [side]: 4, width: 34, height: 34, borderRadius: 17,
+        alignItems: 'center', justifyContent: 'center', backgroundColor: colors.night, opacity: 0.95,
+        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4)', elevation: 6,
+      }}>
+      <Text style={{ color: colors.bg, fontSize: 20, fontWeight: '800', marginTop: -2 }}>{side === 'right' ? '›' : '‹'}</Text>
+    </Pressable>
   );
 }

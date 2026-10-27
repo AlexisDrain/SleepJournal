@@ -13,6 +13,7 @@ import { getDb, store, writeEntry } from './store';
 import { buildXlsx, type ColumnGroup, type SheetColumn, type SheetValue } from './xlsx';
 import { transaction } from './transaction';
 import { clockFormatReady, formatTime } from '@/lib/clockFormat';
+import { formatSheetDate, getDateStyle, localePrefsReady } from '@/lib/localePrefs';
 
 const PHASE_PREFIX: Record<RoutinePhase, string> = { bedtime: 'Bedtime: ', morning: 'Morning: ', anytime: 'Anytime: ' };
 // "Anytime" items have no check-in of their own: they are colored like the general columns. They
@@ -40,10 +41,7 @@ const col = (header: string, group: ColumnGroup, width: number, value: Column['v
 
 // Grouped by color: general, then bedtime, then morning.
 const BASE_COLUMNS: Column[] = [
-  col('Night of', 'other', 11, (e) => {
-    const [y, m, d] = e.nightOf.split('-').map(Number);
-    return `${m}-${d}-${y}`;
-  }),
+  col('Night of', 'other', 11, (e) => formatSheetDate(e.nightOf)), // in the style chosen in Settings → Advanced
   col('Day', 'other', 11, (e) => e.weekday),
   col('Hours asleep', 'other', 8, (e) => e.hoursAsleep),
   col('In bed', 'bedtime', 10, (e) => clock(e.inBedAt)),
@@ -113,9 +111,18 @@ function fromClock(raw: string, nightOf: string, phase: RoutinePhase): string | 
 }
 
 /** "9-26-2026" (sheet style) or "2026-09-26" → "2026-09-26" */
+/**
+ * A date from a spreadsheet → "2026-10-23". Year-month-day is always understood. For the
+ * two-digit styles, "23-10-2026" is read as day-month-year when that's the chosen style
+ * (Settings → Advanced), otherwise as month-day-year (US, and what older exports used).
+ */
 function parseDate(raw: string): string | null {
-  const us = raw.trim().match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-  if (us) return toDateString(new Date(+us[3], +us[1] - 1, +us[2]));
+  const n = raw.trim().match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (n) {
+    const [a, b] = getDateStyle() === 'dmy' ? [+n[2], +n[1]] : [+n[1], +n[2]]; // [month, day]
+    if (a < 1 || a > 12 || b < 1 || b > 31) return null;
+    return toDateString(new Date(+n[3], a - 1, b));
+  }
   return /^\d{4}-\d{2}-\d{2}$/.test(raw.trim()) ? raw.trim() : null;
 }
 
@@ -129,7 +136,7 @@ export const REQUIRED_COLUMN = 'Night of';
  * first one compact summary column, then one detail column per item (hidden items too).
  */
 async function allColumns(): Promise<Column[]> {
-  await clockFormatReady; // times are written in the saved 12/24-hour style, never a guess
+  await Promise.all([clockFormatReady, localePrefsReady]); // saved time and date styles, never a guess
   const items = await store.routine.list();
   // The app never asks for "Times woke up" (it only comes from imported spreadsheets), so the column
   // only appears for journals that have such numbers. New journals don't get an always-empty column.
@@ -194,14 +201,14 @@ export async function sheetPayload(entries: Entry[], options: ExportOptions = {}
       header: c.header,
       group: c.group,
       numeric: c.numeric,
-      derived: !!c.derived,
+      derived: !!c.derived || c.header === REQUIRED_COLUMN,
       hidden: !isIncluded(c, options),
       note: c.legend ? `● = done, ○ = not done, in this order: ${c.legend}` : '',
     })),
     rows: entries.map((e) => ({
       nightOf: e.nightOf,
       updated: e.updatedAt,
-      values: Object.fromEntries(columns.map((c) => [c.header, c.value(e) ?? null])),
+      values: Object.fromEntries(columns.map((c) => [c.header, c.header === REQUIRED_COLUMN ? e.nightOf : c.value(e) ?? null])),
     })),
   };
 }
@@ -222,6 +229,8 @@ export interface ExportOptions {
   fillGaps?: boolean;
   /** Only nights from this one on (YYYY-MM-DD). All nights when left out. */
   from?: string;
+  /** Only nights up to this one (YYYY-MM-DD). */
+  to?: string;
   /** Also include one column per routine item, next to the compact summary. Off by default. */
   routineDetail?: boolean;
   /** Keep summary headers short ("Bedtime routine") instead of adding the legend. For on-screen tables. */
@@ -238,7 +247,7 @@ const emptyEntry = (nightOf: string): Entry => ({
 /** Every night as rows, oldest first. */
 export async function buildTable(options: ExportOptions = {}): Promise<{ columns: Column[]; rows: SheetValue[][] }> {
   const { fillGaps = false } = options;
-  const [newestFirst, all] = await Promise.all([store.listEntries({ from: options.from, limit: 100_000 }), allColumns()]);
+  const [newestFirst, all] = await Promise.all([store.listEntries({ from: options.from, to: options.to, limit: 100_000 }), allColumns()]);
   const columns = all
     .filter((c) => isIncluded(c, options))
     // In a file there's no hover note, so a summary column carries its legend in the header.
@@ -270,12 +279,14 @@ export async function exportCsv(options?: ExportOptions): Promise<void> {
 }
 
 /** The Stats tab's own export: the essentials only, for the nights it's showing. */
-export const STATS_COLUMNS = ['Night of', 'Day', 'Hours asleep', 'Tried to sleep', 'Started day', 'Tags', 'Bedtime note', 'Morning note'];
+export const STATS_COLUMNS = ['Night of', 'Day', 'Hours asleep', 'Tried to sleep', 'Minutes to fall asleep', 'Started day', 'Tags', 'Bedtime note', 'Morning note'];
 
-export async function exportStats(format: 'csv' | 'xlsx', from?: string): Promise<void> {
+/** `include`: which of STATS_COLUMNS to export (the date and day are always there). */
+export async function exportStats(format: 'csv' | 'xlsx', range: { from?: string; to?: string } = {}, include: readonly string[] = STATS_COLUMNS): Promise<void> {
   const all = await allColumns();
-  const exclude = new Set(all.map((c) => c.header).filter((h) => !STATS_COLUMNS.includes(h)));
-  const t = await buildTable({ exclude, from, plainHeaders: true });
+  const wanted = new Set(['Night of', 'Day', ...include]);
+  const exclude = new Set(all.map((c) => c.header).filter((h) => !wanted.has(h)));
+  const t = await buildTable({ exclude, ...range, plainHeaders: true });
   // "Morning note" only matters for nights from before it was taken out of the Journal.
   const at = t.columns.findIndex((c) => c.header === 'Morning note');
   const keep = t.columns.map((_, i) => i).filter((i) => i !== at || t.rows.some((r) => r[i]));

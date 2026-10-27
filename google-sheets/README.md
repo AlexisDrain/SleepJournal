@@ -118,7 +118,7 @@ enter the same two things there.
   Changing the setting rewrites every row once. Typing either style into the sheet works. If you
   use two devices, give them the same setting, or rows will follow whichever device wrote them last.
 - **Editing in Sheets is fine.** Changing a cell marks that row as updated (the *Updated* column),
-  and the app picks it up on its next sync. Typing a new row with a *Night of* date also works.
+  and the app picks it up on its next sync. Typing a new row with a *Night of* date also works; write it as year-month-day (2026-10-23), which is how the app writes dates in the sheet.
 - **Your own columns are kept.** Add columns to the right; they move with their row.
 - **Deleting doesn't sync.** Deleting a night on the phone or a row in the sheet doesn't remove it
   from the other side. Rows are never deleted by the script.

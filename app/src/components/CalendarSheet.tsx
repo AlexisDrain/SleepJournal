@@ -5,10 +5,12 @@ import { store } from '@/db/store';
 import { isFilled } from '@/lib/journal';
 import { colors, space } from '@/lib/theme';
 import { toDateString } from '@/lib/time';
+import { useMondayFirst } from '@/lib/localePrefs';
 import { Panel } from './Panel';
 import { Button, Muted } from './ui';
 
-const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const SUNDAY_FIRST = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const MONDAY_FIRST = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const pad = (n: number) => String(n).padStart(2, '0');
 
 type Mark = 'full' | 'part';
@@ -24,6 +26,7 @@ export function CalendarSheet({ visible, selected, onPick, onClose, allowFuture 
   const [year, setYear] = useState(() => Number(selected.slice(0, 4)));
   const [month, setMonth] = useState(() => Number(selected.slice(5, 7))); // 1-12
   const [marks, setMarks] = useState<Record<string, Mark>>({});
+  const mondayFirst = useMondayFirst(); // Settings → Locale
 
   // Open on the month of the night being shown.
   useEffect(() => {
@@ -50,7 +53,8 @@ export function CalendarSheet({ visible, selected, onPick, onClose, allowFuture 
   };
 
   const today = toDateString(new Date());
-  const firstWeekday = new Date(year, month - 1, 1).getDay();
+  // Blank cells before the 1st: how far into the week it falls, counting from Monday or Sunday.
+  const firstWeekday = (new Date(year, month - 1, 1).getDay() + (mondayFirst ? 6 : 0)) % 7;
   const daysInMonth = new Date(year, month, 0).getDate();
   const cells: (number | null)[] = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
   while (cells.length % 7) cells.push(null);
@@ -69,7 +73,7 @@ export function CalendarSheet({ visible, selected, onPick, onClose, allowFuture 
         </View>
 
         <View style={{ flexDirection: 'row' }}>
-          {WEEKDAYS.map((d, i) => (
+          {(mondayFirst ? MONDAY_FIRST : SUNDAY_FIRST).map((d, i) => (
             <Text key={i} style={{ flex: 1, textAlign: 'center', color: colors.muted, fontSize: 12 }}>{d}</Text>
           ))}
         </View>
