@@ -7,3 +7,11 @@ node_modules/
 *.xlsx
 *.db
 *.sqlite
+
+# App signing keys and store credentials: they stay on Expo's servers, never in this public repo
+credentials.json
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
