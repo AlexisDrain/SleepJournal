@@ -220,6 +220,8 @@ export interface ExportOptions {
   exclude?: ReadonlySet<string>;
   /** Add a blank row (date + day only) for every night between the first and last entry that has none. */
   fillGaps?: boolean;
+  /** Only nights from this one on (YYYY-MM-DD). All nights when left out. */
+  from?: string;
   /** Also include one column per routine item, next to the compact summary. Off by default. */
   routineDetail?: boolean;
   /** Keep summary headers short ("Bedtime routine") instead of adding the legend. For on-screen tables. */
@@ -236,7 +238,7 @@ const emptyEntry = (nightOf: string): Entry => ({
 /** Every night as rows, oldest first. */
 export async function buildTable(options: ExportOptions = {}): Promise<{ columns: Column[]; rows: SheetValue[][] }> {
   const { fillGaps = false } = options;
-  const [newestFirst, all] = await Promise.all([store.listEntries({ limit: 100_000 }), allColumns()]);
+  const [newestFirst, all] = await Promise.all([store.listEntries({ from: options.from, limit: 100_000 }), allColumns()]);
   const columns = all
     .filter((c) => isIncluded(c, options))
     // In a file there's no hover note, so a summary column carries its legend in the header.
@@ -265,6 +267,28 @@ export async function buildCsv(options?: ExportOptions): Promise<string> {
 export async function exportCsv(options?: ExportOptions): Promise<void> {
   await shareFile(`sleep-journal-${toDateString(new Date())}.csv`, await buildCsv({ ...options, routineDetail: true }),
     'text/csv', 'public.comma-separated-values-text');
+}
+
+/** The Stats tab's own export: the essentials only, for the nights it's showing. */
+export const STATS_COLUMNS = ['Night of', 'Day', 'Hours asleep', 'Tried to sleep', 'Started day', 'Tags', 'Bedtime note', 'Morning note'];
+
+export async function exportStats(format: 'csv' | 'xlsx', from?: string): Promise<void> {
+  const all = await allColumns();
+  const exclude = new Set(all.map((c) => c.header).filter((h) => !STATS_COLUMNS.includes(h)));
+  const t = await buildTable({ exclude, from, plainHeaders: true });
+  // "Morning note" only matters for nights from before it was taken out of the Journal.
+  const at = t.columns.findIndex((c) => c.header === 'Morning note');
+  const keep = t.columns.map((_, i) => i).filter((i) => i !== at || t.rows.some((r) => r[i]));
+  const columns = keep.map((i) => t.columns[i]);
+  const rows = t.rows.map((r) => keep.map((i) => r[i]));
+  const name = `sleep-journal-stats-${toDateString(new Date())}`;
+  if (format === 'csv') {
+    const text = [columns.map((c) => c.header), ...rows].map((r) => r.map(cell).join(',')).join('\r\n');
+    await shareFile(`${name}.csv`, text, 'text/csv', 'public.comma-separated-values-text');
+  } else {
+    await shareFile(`${name}.xlsx`, buildXlsx('Sleep stats', columns, rows),
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'org.openxmlformats.spreadsheetml.sheet');
+  }
 }
 
 /** Color-coded .xlsx for Google Sheets / Excel → share sheet. */
