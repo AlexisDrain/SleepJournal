@@ -3,6 +3,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { Panel } from '@/components/Panel';
 import { Button, Card, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { exportStats } from '@/db/csv';
 import { store } from '@/db/store';
@@ -38,6 +39,7 @@ export default function StatsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [reading, setReading] = useState<Reading | null>(null); // a note or tags opened in full
   const [hidden, setHidden] = useState<Set<string>>(new Set()); // columns switched off (saved on this device)
   useEffect(() => { loadHiddenStatsColumns().then(setHidden, () => {}); }, []);
   const toggle = (id: string) => {
@@ -84,15 +86,20 @@ export default function StatsScreen() {
 
   const header = (
     <View style={{ gap: space.md }}>
-      {/* Phones have no room for these in the bottom bar, so they open from here. */}
-      {!wide && (
-        <Card title="More from your journal">
-          <Button title="☁ Dreams" color={colors.chip} textColor={colors.text} onPress={() => router.navigate('/dreams')} />
-          <Muted>Every dream you wrote down, to read back.</Muted>
-          <Button title="▦ Sheet" color={colors.chip} textColor={colors.text} onPress={() => router.navigate('/sheet')} />
-          <Muted>The whole journal as a spreadsheet.</Muted>
-        </Card>
-      )}
+      {/* Dreams and Sheet belong to Stats. On phones this card is the way to them (the bottom bar
+          has no room); wide screens also have them in the menu, and show the two side by side. */}
+      <Card title="More from your journal">
+        <View style={wide ? { flexDirection: 'row', gap: space.md } : { gap: space.md }}>
+          <View style={{ flex: wide ? 1 : undefined, gap: space.sm }}>
+            <Button title="☁ Dreams" color={colors.chip} textColor={colors.text} onPress={() => router.navigate('/dreams')} />
+            <Muted>Every dream you wrote down, to read back.</Muted>
+          </View>
+          <View style={{ flex: wide ? 1 : undefined, gap: space.sm }}>
+            <Button title="▦ Sheet" color={colors.chip} textColor={colors.text} onPress={() => router.navigate('/sheet')} />
+            <Muted>The whole journal as a spreadsheet.</Muted>
+          </View>
+        </View>
+      </Card>
       <View style={[styles.chips, { justifyContent: 'center' }]}>
         {PERIODS.map((p, i) => <Chip key={p.label} label={p.label} selected={!year && i === period} onPress={() => { setYear(null); setPeriod(i); }} />)}
       </View>
@@ -133,23 +140,33 @@ export default function StatsScreen() {
         ))}
       </View>
       <Muted>Untick a column to hide it here and leave it out of the export. The export has the nights shown.</Muted>
-      {shown.length > 0 && (wide ? <TableHeader cols={cols} /> : <SwipeTable entries={shown} cols={cols} />)}
+      {shown.length > 0 && (wide ? <TableHeader cols={cols} /> : <SwipeTable entries={shown} cols={cols} onRead={setReading} />)}
     </View>
   );
 
   if (loading) return <View style={styles.screen}><ActivityIndicator color={colors.night} style={{ marginTop: space.xl }} /></View>;
 
   return (
-    <FlatList
-      style={styles.screen}
-      contentContainerStyle={[styles.scroll, page(wide ? WIDE_PAGE : NARROW_PAGE)]}
-      // Phones draw the whole table in the header (it scrolls sideways); wide screens list the rows.
-      data={wide ? shown : []}
-      keyExtractor={(e) => e.nightOf}
-      ListHeaderComponent={<View style={{ marginBottom: space.md }}>{header}</View>}
-      ListEmptyComponent={shown.length ? undefined : <Muted>{entries.length ? 'No times, tags or notes in this period yet.' : 'No nights in this period yet.'}</Muted>}
-      renderItem={({ item, index }) => <NightRow e={item} cols={cols} odd={index % 2 === 1} last={index === shown.length - 1} />}
-    />
+    <View style={styles.screen}>
+      <FlatList
+        style={styles.screen}
+        contentContainerStyle={[styles.scroll, page(wide ? WIDE_PAGE : NARROW_PAGE)]}
+        // Phones draw the whole table in the header (it scrolls sideways); wide screens list the rows.
+        data={wide ? shown : []}
+        keyExtractor={(e) => e.nightOf}
+        ListHeaderComponent={<View style={{ marginBottom: space.md }}>{header}</View>}
+        ListEmptyComponent={shown.length ? undefined : <Muted>{entries.length ? 'No times, tags or notes in this period yet.' : 'No nights in this period yet.'}</Muted>}
+        renderItem={({ item, index }) => <NightRow e={item} cols={cols} odd={index % 2 === 1} last={index === shown.length - 1} onRead={setReading} />}
+      />
+      <Panel visible={reading !== null} onClose={() => setReading(null)}>
+        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>{reading?.title}</Text>
+        <Muted>Night of {reading ? dayLabel(reading.nightOf) : ''}</Muted>
+        <ScrollView style={{ flexGrow: 0, flexShrink: 1 }}>
+          <Text selectable style={{ color: colors.text, fontSize: 16, lineHeight: 24 }}>{reading?.text}</Text>
+        </ScrollView>
+        <Button title="Close" small onPress={() => setReading(null)} color={colors.chip} textColor={colors.text} />
+      </Panel>
+    </View>
   );
 }
 
@@ -258,7 +275,13 @@ function TableHeader({ cols }: { cols: Col[] }) {
   return <View style={{ marginTop: space.sm }}><HeaderRow cols={cols} fixed={false} /></View>;
 }
 
-function NightRow({ e, cols, odd, last, fixed = false }: { e: Entry; cols: Col[]; odd: boolean; last: boolean; fixed?: boolean }) {
+interface Reading { title: string; nightOf: string; text: string }
+/** Columns that hold free text: shown on one line, tap to read in full (as in the Sheet tab). */
+const LONG_TEXT = new Set(['tags', 'notes']);
+
+function NightRow({ e, cols, odd, last, onRead, fixed = false }: {
+  e: Entry; cols: Col[]; odd: boolean; last: boolean; onRead: (r: Reading) => void; fixed?: boolean;
+}) {
   return (
     <View style={{
       flexDirection: 'row', gap: space.md, alignItems: 'flex-start', paddingHorizontal: space.md, paddingVertical: space.sm,
@@ -269,8 +292,18 @@ function NightRow({ e, cols, odd, last, fixed = false }: { e: Entry; cols: Col[]
       <Text style={[cellText, sized(NIGHT_COL, fixed), { fontWeight: '600' }]}>{shortNight(e.nightOf)}</Text>
       {cols.map((c) => {
         const v = c.cell(e);
+        if (LONG_TEXT.has(c.id) && v.text) {
+          return (
+            <Pressable key={c.id} style={sized(c, fixed)} onPress={() => onRead({ title: c.label, nightOf: e.nightOf, text: v.text })}
+              accessibilityRole="button" accessibilityLabel={`Read ${c.label}`}>
+              <Text numberOfLines={1} style={[cellText, {
+                textDecorationLine: 'underline', textDecorationColor: colors.muted, ...(v.color ? { color: v.color } : null),
+              }]}>{v.text}</Text>
+            </Pressable>
+          );
+        }
         return (
-          <Text key={c.id} selectable={c.id === 'notes'} style={[cellText, sized(c, fixed), {
+          <Text key={c.id} numberOfLines={1} style={[cellText, sized(c, fixed), {
             textAlign: c.right ? 'right' : 'left', fontVariant: ['tabular-nums'],
             ...(v.color ? { color: v.color } : null), ...(v.bold ? { fontWeight: '700' as const } : null),
           }]}>{v.text}</Text>
@@ -281,7 +314,7 @@ function NightRow({ e, cols, odd, last, fixed = false }: { e: Entry; cols: Col[]
 }
 
 /** Phones: the table at readable column widths, scrolling sideways, with arrows to the hidden columns. */
-function SwipeTable({ entries, cols }: { entries: Entry[]; cols: Col[] }) {
+function SwipeTable({ entries, cols, onRead }: { entries: Entry[]; cols: Col[]; onRead: (r: Reading) => void }) {
   // A phone draws every row of this table at once, so it shows them a batch at a time: a year or
   // more of nights would otherwise make the tab slow to open.
   const [limit, setLimit] = useState(ROW_BATCH);
@@ -302,7 +335,7 @@ function SwipeTable({ entries, cols }: { entries: Entry[]; cols: Col[] }) {
         onScroll={(e) => setX(e.nativeEvent.contentOffset.x)}>
         <View style={{ width: contentW }}>
           <HeaderRow cols={cols} fixed />
-          {rows.map((e, i) => <NightRow key={e.nightOf} e={e} cols={cols} fixed odd={i % 2 === 1} last={i === rows.length - 1} />)}
+          {rows.map((e, i) => <NightRow key={e.nightOf} e={e} cols={cols} fixed odd={i % 2 === 1} last={i === rows.length - 1} onRead={onRead} />)}
         </View>
       </ScrollView>
       {more.left && <Arrow side="left" onPress={() => jump(-1)} />}
