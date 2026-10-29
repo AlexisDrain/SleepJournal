@@ -147,7 +147,37 @@ export async function writeEntry(tx: SQLite.SQLiteDatabase, nightOf: string, pat
       }
     }
   }
+  if (!updatedAt) await markUnsynced(tx, id, fieldsOf(patch)); // an edit made here: it has to reach the sheet
   return id;
+}
+
+/** The field names a patch changes, as kept in `entries.unsynced`: "wokeAt", "tags", "routine:4"… */
+export function fieldsOf(patch: EntryPatch): string[] {
+  return [
+    ...Object.keys(COLUMNS).filter((k) => patch[k as keyof typeof COLUMNS] !== undefined),
+    ...(patch.tags ? ['tags'] : []),
+    ...Object.keys(patch.routine ?? {}).map((id) => `routine:${id}`),
+  ];
+}
+
+async function markUnsynced(tx: SQLite.SQLiteDatabase, id: number, fields: string[]) {
+  if (!fields.length) return;
+  const row = await tx.getFirstAsync<{ unsynced: string }>(`SELECT unsynced FROM entries WHERE id = ?`, id);
+  const all = new Set([...(row?.unsynced.split(' ').filter(Boolean) ?? []), ...fields]);
+  await tx.runAsync(`UPDATE entries SET unsynced = ? WHERE id = ?`, [...all].join(' '), id);
+}
+
+/** Per night: the fields changed here that the sheet doesn't have yet (as stored, space-separated). */
+async function unsyncedFields(): Promise<Map<string, string>> {
+  const rows = await (await getDb()).getAllAsync<{ nightOf: string; unsynced: string }>(
+    `SELECT night_of AS nightOf, unsynced FROM entries WHERE unsynced <> ''`);
+  return new Map(rows.map((r) => [r.nightOf, r.unsynced]));
+}
+
+/** The night reached the sheet as it was then. (Not if it was edited again meanwhile.) */
+async function markSynced(nightOf: string, updatedAt: string, unsynced: string) {
+  await (await getDb()).runAsync(
+    `UPDATE entries SET unsynced = '' WHERE night_of = ? AND updated_at = ? AND unsynced = ?`, nightOf, updatedAt, unsynced);
 }
 
 async function saveEntry(nightOf: string, patch: EntryPatch): Promise<Entry> {
@@ -222,7 +252,9 @@ const tags = {
   remove: async (id: number) => {
     const db = await getDb();
     await transaction(db, async (tx) => {
+      const nights = await tx.getAllAsync<{ entry_id: number }>(`SELECT entry_id FROM entry_tags WHERE tag_id = ?`, id);
       await tx.runAsync(`UPDATE entries SET updated_at = ${NOW} WHERE id IN (SELECT entry_id FROM entry_tags WHERE tag_id = ?)`, id);
+      for (const n of nights) await markUnsynced(tx, n.entry_id, ['tags']);
       await tx.runAsync(`DELETE FROM tags WHERE id = ?`, id);
     });
   },
@@ -321,6 +353,8 @@ export const store = {
   listEntries,
   saveEntry,
   deleteEntry,
+  unsyncedFields,
+  markSynced,
   tags,
   routine,
   naps: table<Nap>('naps', 'start_at DESC', { startAt: 'start_at', endAt: 'end_at', note: 'note' }),

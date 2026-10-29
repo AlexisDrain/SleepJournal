@@ -13,7 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadExcluded, loadRoutineDetail } from '@/lib/exportPrefs';
 import { secureStorage } from '@/lib/secureStorage';
 import { currentNight } from '@/lib/time';
-import type { RoutineItem, RoutinePhase } from '@/lib/types';
+import type { EntryPatch, RoutineItem, RoutinePhase } from '@/lib/types';
 import { isEmptyRow, routineColumnsFor, rowToPatch, sheetPayload } from './csv';
 import { getDb, store, writeEntry } from './store';
 import { transaction } from './transaction';
@@ -146,6 +146,19 @@ export async function resendAllNights(): Promise<void> {
   requestSync(0);
 }
 
+/** Now, but at least a second after `time`, so the sheet sees this copy as the newer one. */
+const laterThan = (time: string) =>
+  new Date(Math.max(Date.now(), Date.parse(time) + 1000)).toISOString().slice(0, 19) + 'Z';
+
+/** A night from the sheet, minus the fields this device changed and hasn't sent yet. */
+function withoutFields(patch: EntryPatch, keep: Set<string>): EntryPatch {
+  if (keep.size === 0) return patch;
+  const out: EntryPatch = { ...patch };
+  for (const k of keep) if (!k.startsWith('routine:')) delete out[k as keyof EntryPatch];
+  if (out.routine) out.routine = Object.fromEntries(Object.entries(out.routine).filter(([id]) => !keep.has(`routine:${id}`)));
+  return out;
+}
+
 /** Forget the sheet on this phone. Nothing is deleted on either side. */
 export async function disconnect() {
   await secureStorage.remove(CONNECTION_KEY);
@@ -269,36 +282,19 @@ async function runSync() {
   const state = await getSyncState();
   try {
     const routineChanged = await syncRoutine(conn);
-    const entries = await store.listEntries({ limit: 100_000 });
     // The sheet shows the same fields you chose for exports; the rest are hidden there, not dropped.
     const options = { exclude: await loadExcluded(), routineDetail: await loadRoutineDetail() };
-    const push = async (nights: typeof entries) => {
-      let written = 0;
-      for (let i = 0; i < nights.length; i += PUSH_BATCH) {
-        const res = await call<{ written: number }>(conn, 'push', await sheetPayload(nights.slice(i, i + PUSH_BATCH), options));
-        written += res.written;
-      }
-      return written;
-    };
 
-    // push: nights changed here. If the layout changed (fields shown/hidden, routine items), send
-    // every night once so hidden columns and the routine summaries are brought up to date.
-    // ("dates:ymd" was added when the sheet's dates became year-month-day: one full resend rewrote them.)
-    const layout = JSON.stringify((await sheetPayload([], options)).columns) + '|dates:ymd';
-    const full = layout !== state.layout;
-    const changed = entries
-      .filter((e) => full || e.updatedAt > state.lastPushed)
-      .sort((a, b) => a.nightOf.localeCompare(b.nightOf));
-    const pushed = await push(changed);
-    if (changed.length) state.lastPushed = changed.reduce((max, e) => (e.updatedAt > max ? e.updatedAt : max), state.lastPushed);
-    state.layout = layout;
-
-    // pull
+    // pull first, and merge field by field: a field changed here and not sent yet keeps this
+    // device's value; every other field takes the sheet's. So two devices that each changed a
+    // different field of the same night (the dream on one, the woke-up time on the other) both
+    // keep their change, whichever saved last.
     const { tabs, version, sheet, url } = await call<{ tabs: PullTab[]; version?: number; sheet?: string; url?: string }>(conn, 'pull', { since: state.lastPulled });
     state.scriptVersion = version ?? 1;
     if (sheet) state.sheetName = sheet; // the sheet may have been renamed
     state.sheetUrl = sheetAddress(url) ?? state.sheetUrl;
-    const local = new Map(entries.map((e) => [e.nightOf, e]));
+    const local = new Map((await store.listEntries({ limit: 100_000 })).map((e) => [e.nightOf, e]));
+    const unsynced = await store.unsyncedFields();
     const db = await getDb();
     let pulled = 0;
     const pulledNights = new Set<string>();
@@ -307,21 +303,46 @@ async function runSync() {
       await transaction(db, async (tx) => {
         for (const r of tab.rows) {
           const mine = local.get(r.nightOf);
-          if (mine && mine.updatedAt >= r.updated) continue; // this phone's version is as new or newer
           if (!mine && isEmptyRow(tab.header, r.cells)) continue;
-          await writeEntry(tx, r.nightOf, rowToPatch(tab.header, r.cells, r.nightOf, routineCols), r.updated);
-          pulled++;
+          const theirsNewer = !mine || r.updated > mine.updatedAt;
+          const keep = new Set((unsynced.get(r.nightOf) ?? '').split(' ').filter(Boolean));
+          if (mine && keep.size === 0 && mine.updatedAt > state.lastPushed) {
+            // Changed here before this app kept track of which fields: the newer copy wins whole.
+            if (!theirsNewer) continue;
+          }
+          const patch = withoutFields(rowToPatch(tab.header, r.cells, r.nightOf, routineCols), keep);
+          // Keep this night's own time when it's the newer copy, or when edits made here still have
+          // to go out (so they win in the sheet); otherwise it now dates from the sheet's change.
+          const at = mine && (!theirsNewer || keep.size) ? (theirsNewer ? laterThan(r.updated) : mine.updatedAt) : r.updated;
+          await writeEntry(tx, r.nightOf, patch, at);
+          if (theirsNewer) pulled++;
           pulledNights.add(r.nightOf);
         }
       });
       for (const r of tab.rows) if (r.updated > state.lastPulled) state.lastPulled = r.updated;
     }
 
-    // Nights that came from the sheet: send them back once so the computed columns there
-  // (hours asleep, routine summaries) match what was just typed. Their data isn't overwritten.
-    if (pulledNights.size) {
-      await push((await store.listEntries({ limit: 100_000 })).filter((e) => pulledNights.has(e.nightOf)));
+    // push: nights changed here (now including what was just merged in). If the layout changed
+    // (fields shown/hidden, routine items), send every night once so hidden columns and the
+    // routine summaries are brought up to date. Nights that came from the sheet go back once too,
+    // so the computed columns there (hours asleep, routine summaries) match; the sheet keeps its
+    // own copy of a night unless this one is newer.
+    // ("dates:ymd" was added when the sheet's dates became year-month-day: one full resend rewrote them.)
+    const layout = JSON.stringify((await sheetPayload([], options)).columns) + '|dates:ymd';
+    const full = layout !== state.layout;
+    const sentWith = await store.unsyncedFields();
+    const changed = (await store.listEntries({ limit: 100_000 }))
+      .filter((e) => full || e.updatedAt > state.lastPushed || pulledNights.has(e.nightOf) || sentWith.has(e.nightOf))
+      .sort((x, y) => x.nightOf.localeCompare(y.nightOf));
+    let pushed = 0;
+    for (let i = 0; i < changed.length; i += PUSH_BATCH) {
+      const batch = changed.slice(i, i + PUSH_BATCH);
+      const res = await call<{ written: number }>(conn, 'push', await sheetPayload(batch, options));
+      pushed += res.written;
+      for (const e of batch) if (sentWith.has(e.nightOf)) await store.markSynced(e.nightOf, e.updatedAt, sentWith.get(e.nightOf)!);
     }
+    if (changed.length) state.lastPushed = changed.reduce((max, e) => (e.updatedAt > max ? e.updatedAt : max), state.lastPushed);
+    state.layout = layout;
 
     await saveState({ ...state, lastSyncAt: new Date().toISOString(), lastError: null });
     if (pulled || routineChanged) pulledListeners.forEach((fn) => fn());

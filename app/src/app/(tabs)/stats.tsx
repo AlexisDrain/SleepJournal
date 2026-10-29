@@ -128,10 +128,11 @@ export default function StatsScreen() {
         </Card>
       )}
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-        <Text style={[styles.cardTitle, { flex: 1 }]}>Night by night</Text>
-        <Button title="Export .xlsx" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('xlsx')} />
-        <Button title="CSV" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('csv')} />
+      {/* On a phone the two buttons don't fit beside the heading: they wrap under it. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.md }}>
+        <Text style={[styles.cardTitle, { flexGrow: 1, flexBasis: 160 }]}>Night by night</Text>
+        <Button title="Export .xlsx (recommended)" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('xlsx')} />
+        <Button title="Export .csv" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('csv')} />
       </View>
       {/* Each column on or off: on screen and in the export alike. */}
       <View style={styles.chips}>

@@ -163,6 +163,13 @@ export const MIGRATIONS: string[] = [
   -- Items already hidden: their last edit is the best guess for when.
   UPDATE routine_items SET hidden_since = date(updated_at) WHERE archived = 1 AND updated_at <> '';
   `,
+
+  // 7 — which fields of a night were changed here and not yet sent to the Google Sheet
+  `
+  -- Space-separated field names ("wokeAt dream routine:4"). Syncing merges field by field: a field
+  -- listed here keeps this device's value, every other field takes the sheet's. Cleared once sent.
+  ALTER TABLE entries ADD COLUMN unsynced TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export async function migrate(db: SQLiteDatabase) {
