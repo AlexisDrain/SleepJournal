@@ -8,9 +8,9 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { addDays, toDateString, toLocalIso, weekdayOf } from '@/lib/time';
 import type { Entry, EntryPatch, Phase, RoutineItem, RoutinePhase, RoutineValue } from '@/lib/types';
-import { readPickedText, shareFile } from './files';
+import { readPickedBytes, readPickedText, shareFile } from './files';
 import { getDb, store, writeEntry } from './store';
-import { buildXlsx, type ColumnGroup, type SheetColumn, type SheetValue } from './xlsx';
+import { buildXlsx, readXlsx, type ColumnGroup, type SheetColumn, type SheetValue } from './xlsx';
 import { transaction } from './transaction';
 import { clockFormatReady, formatTime } from '@/lib/clockFormat';
 import { formatSheetDate, getDateStyle, localePrefsReady } from '@/lib/localePrefs';
@@ -142,17 +142,19 @@ async function allColumns(): Promise<Column[]> {
   // only appears for journals that have such numbers. New journals don't get an always-empty column.
   const hasWakeCounts = !!(await (await getDb()).getFirstAsync('SELECT 1 AS x FROM entries WHERE wake_count IS NOT NULL LIMIT 1'));
   const base = BASE_COLUMNS.filter((c) => hasWakeCounts || c.header !== 'Times woke up');
-  // "●●○● 3/4": a dot per current routine item in order, filled when done. Blank if none were done.
+  // "●●○● 3/4": a dot per routine item in order, filled when done. Blank if none were done.
+  // A hidden item still has its dot on the nights before it was hidden, so old rows don't change.
   const summary = (phase: RoutinePhase): Column => {
-    const current = items.filter((i) => i.phase === phase && !i.archived).sort((a, b) => a.sortOrder - b.sortOrder);
+    const list = items.filter((i) => i.phase === phase && (!i.archived || i.hiddenSince)).sort((a, b) => a.sortOrder - b.sortOrder);
+    const counts = (i: RoutineItem, nightOf: string) => !i.archived || (!!i.hiddenSince && nightOf < i.hiddenSince);
     return {
       ...col(SUMMARY_HEADER[phase], groupOf(phase), 26, (e) => {
-        const done = current.map((i) => e.routine[i.id] != null && e.routine[i.id] !== false);
+        const done = list.filter((i) => counts(i, e.nightOf)).map((i) => e.routine[i.id] != null && e.routine[i.id] !== false);
         const n = done.filter(Boolean).length;
-        return n === 0 ? null : `${done.map((d) => (d ? '●' : '○')).join('')} ${n}/${current.length}`;
+        return n === 0 ? null : `${done.map((d) => (d ? '●' : '○')).join('')} ${n}/${done.length}`;
       }),
       derived: true,
-      legend: current.map((i) => i.label).join(' · '),
+      legend: list.map((i) => (i.archived ? `${i.label} (before ${i.hiddenSince})` : i.label)).join(' · '),
     };
   };
   const routineCell = (item: RoutineItem, v: RoutineValue | undefined): SheetValue =>
@@ -420,7 +422,25 @@ export function rowToPatch(header: string[], row: string[], nightOf: string, rou
 }
 
 export async function importCsvText(text: string): Promise<ImportResult> {
-  const rows = parseCsv(text.replace(/^﻿/, ''));
+  return importRows(parseCsv(text.replace(/^﻿/, '')));
+}
+
+/**
+ * An .xlsx file: this app's export, or a Google Sheet / Excel file. Every tab with a "Night of"
+ * column is read (a synced Google Sheet has one per year); other tabs are left out.
+ */
+export async function importXlsx(bytes: Uint8Array): Promise<ImportResult> {
+  const sheets = readXlsx(bytes).filter((s) => s.rows[0]?.some((h) => h.trim() === REQUIRED_COLUMN));
+  if (sheets.length === 0) return importRows(readXlsx(bytes)[0]?.rows ?? []); // explains what's missing
+  const total: ImportResult = { imported: 0, skipped: 0, invalid: 0, empty: 0 };
+  for (const s of sheets) {
+    const r = await importRows(s.rows);
+    for (const k of Object.keys(total) as (keyof ImportResult)[]) total[k] += r[k];
+  }
+  return total;
+}
+
+async function importRows(rows: string[][]): Promise<ImportResult> {
   if (rows.length === 0) throw new Error('The file is empty.');
   const header = rows[0].map((h) => h.trim());
   if (!header.includes('Night of')) throw new Error('This doesn\'t look like a Sleep Journal export (no "Night of" column).');
@@ -456,9 +476,11 @@ export async function importCsvText(text: string): Promise<ImportResult> {
   return result;
 }
 
-/** Lets the user pick a CSV (Files, iCloud Drive, Google Drive…) and imports it. null = cancelled. */
-export async function pickAndImportCsv(): Promise<ImportResult | null> {
+/** Lets the user pick a .csv or .xlsx (Files, iCloud Drive, Google Drive…) and imports it. null = cancelled. */
+export async function pickAndImport(): Promise<ImportResult | null> {
   const picked = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
   if (picked.canceled) return null;
-  return importCsvText(await readPickedText(picked.assets[0]));
+  const file = picked.assets[0];
+  const xlsx = /\.xlsx$/i.test(file.name ?? '') || file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  return xlsx ? importXlsx(await readPickedBytes(file)) : importCsvText(await readPickedText(file));
 }

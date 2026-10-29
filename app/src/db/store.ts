@@ -1,6 +1,6 @@
 // All reads and writes go through here: plain SQL against the SQLite file on the phone.
 import * as SQLite from 'expo-sqlite';
-import { weekdayOf } from '@/lib/time';
+import { currentNight, weekdayOf } from '@/lib/time';
 import type { Entry, EntryPatch, Nap, RoutineItem, RoutinePhase, Tag } from '@/lib/types';
 import { migrate } from './migrations';
 import { transaction } from './transaction';
@@ -233,7 +233,7 @@ const tags = {
 const routineTable = table<RoutineItem>(
   'routine_items',
   'phase, sort_order, id',
-  { label: 'label', phase: 'phase', kind: 'kind', sortOrder: 'sort_order', archived: 'archived', uid: 'uid', updatedAt: 'updated_at' },
+  { label: 'label', phase: 'phase', kind: 'kind', sortOrder: 'sort_order', archived: 'archived', uid: 'uid', updatedAt: 'updated_at', hiddenSince: 'hidden_since' },
   ['archived'],
 );
 
@@ -256,12 +256,15 @@ const routine = {
 
   update: async (id: number, body: RoutineEdit) => {
     const db = await getDb();
-    const now = await db.getFirstAsync<{ phase: RoutinePhase }>(`SELECT phase FROM routine_items WHERE id = ?`, id);
+    const now = await db.getFirstAsync<{ phase: RoutinePhase; archived: number }>(`SELECT phase, archived FROM routine_items WHERE id = ?`, id);
     // Moved to another list: it joins the end of that list.
     const moved = body.phase !== undefined && now !== null && body.phase !== now.phase;
+    if (body.archived === false) await db.runAsync(`UPDATE routine_items SET hidden_since = NULL WHERE id = ?`, id);
     await routineTable.update(id, {
       label: body.label, phase: body.phase, kind: body.kind, archived: body.archived,
       ...(moved ? { sortOrder: await endOf(body.phase!) } : {}),
+      // Hidden from tonight on; nights before keep it. (Showing it again clears this.)
+      ...(body.archived === true && now?.archived !== 1 ? { hiddenSince: currentNight() } : {}),
       updatedAt: stamp(),
     });
   },

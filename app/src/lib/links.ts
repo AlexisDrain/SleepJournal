@@ -12,3 +12,9 @@ export const REPO_URL: string = 'https://github.com/AlexisDrain/SleepJournal';
 
 /** The step-by-step setup guide for Google Sheet sync. */
 export const SHEET_GUIDE_URL: string = '';
+
+/**
+ * Where people write about problems and ideas, and send a spreadsheet (Settings → Help).
+ * It ships in the open-source app, so it's public.
+ */
+export const SUPPORT_EMAIL: string = 'alexisdrain97@gmail.com';

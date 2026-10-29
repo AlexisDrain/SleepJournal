@@ -168,20 +168,13 @@ export function ExportSheet({ visible, onClose, onError, mode = 'export' }: {
           <>
             <Muted>
               {partial ? "Some fields are off, so this CSV won't be a full backup. " : ''}
-              CSV always keeps one column per routine item, so a backup can be restored. A connected Google Sheet
-              shows the same fields as here; the rest are hidden there, not deleted. The Sheet tab in the app has
-              its own choices.
+              .xlsx is a color-coded spreadsheet to read in Excel or Google Sheets. .csv is plain text for
+              backups: it keeps one column per routine item, so it can be imported again.
             </Muted>
-            <Button title="Spreadsheet (.xlsx)" onPress={() => start('xlsx')} disabled={!columns} />
-            <View style={{ flexDirection: 'row', gap: space.md }}>
-              <View style={{ flex: 1 }}>
-                <Button title="CSV" small onPress={() => start('csv')} disabled={!columns}
-                  color={colors.chip} textColor={colors.text} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button title="Done" small onPress={() => start(null)} color={colors.chip} textColor={colors.text} />
-              </View>
-            </View>
+            <Button title="Export as .xlsx (recommended)" onPress={() => start('xlsx')} disabled={!columns} />
+            <Button title="Export as .csv" onPress={() => start('csv')} disabled={!columns}
+              color={colors.chip} textColor={colors.text} />
+            <Button title="Done" onPress={() => start(null)} color={colors.chip} textColor={colors.text} />
           </>
         )}
     </Panel>

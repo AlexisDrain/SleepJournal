@@ -6,7 +6,7 @@ import { useWide } from '@/lib/useLayout';
 
 const icon = (glyph: string) => ({ color }: { color: ColorValue }) => <Text style={{ color, fontSize: 20 }}>{glyph}</Text>;
 
-/** On phones, Dreams and Sheet are opened from the Stats page: a way back to it. */
+/** Dreams and Sheet are opened from the Stats page: a way back to it. */
 const backToStats = () => (
   <Pressable onPress={() => router.navigate('/stats')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back to Stats"
     style={{ paddingHorizontal: space.lg }}>
@@ -22,7 +22,7 @@ export default function TabsLayout() {
   // (Hidden by drawing no button, not with href: null, which on SDK 58 also made the page unreachable.)
   const fromStats = wide
     // Wide: indented under Stats, slightly smaller, to show they belong to it.
-    ? { tabBarItemStyle: { marginLeft: 28 }, tabBarLabelStyle: { fontSize: 13 } }
+    ? { tabBarItemStyle: { marginLeft: 28 }, tabBarLabelStyle: { fontSize: 13 }, headerLeft: backToStats }
     : { tabBarButton: () => null, tabBarItemStyle: { display: 'none' as const }, headerLeft: backToStats };
   return (
     <Tabs

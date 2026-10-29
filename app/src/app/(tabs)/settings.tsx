@@ -5,7 +5,7 @@ import { ExportSheet } from '@/components/ExportSheet';
 import { GoogleSheetCard } from '@/components/GoogleSheetCard';
 import { TimePicker } from '@/components/TimeField';
 import { Button, Card, Chip, ErrorBox, Muted, Row, styles } from '@/components/ui';
-import { pickAndImportCsv } from '@/db/csv';
+import { pickAndImport } from '@/db/csv';
 import buildInfo from '@/lib/buildInfo.json';
 import { requestSync, resendAllNights } from '@/db/sync';
 import { setCombine, useCombine } from '@/lib/advanced';
@@ -14,7 +14,7 @@ import { setHour24, useHour24 } from '@/lib/clockFormat';
 import { DAY_ENDS, DAY_STARTS, setDisplayMode, useDisplayMode, type DisplayMode } from '@/lib/displayMode';
 import { formatHour } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
-import { REPO_URL } from '@/lib/links';
+import { REPO_URL, SUPPORT_EMAIL } from '@/lib/links';
 import type { Phase } from '@/lib/types';
 import { clearReminder, ensurePermission, getReminders, plannedReminders, remindersSupported, setReminder, type Reminder } from '@/lib/notifications';
 import { colors, space } from '@/lib/theme';
@@ -29,6 +29,7 @@ const DEFAULT_REMINDER: Record<Phase, Reminder> = {
 const PHASE_NAME: Record<Phase, string> = { bedtime: 'Bedtime', morning: 'Morning' };
 const DATE_STYLES: [DateStyle, string][] = [['ymd', 'year-month-day'], ['mdy', 'month-day-year (US)'], ['dmy', 'day-month-year']];
 const DISPLAY_MODES: [DisplayMode, string][] = [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Light by day, dark at night']];
+const SUPPORT_MAIL = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Sleep Journal feedback (build ${buildInfo.build})`)}`;
 const PHASE_COLOR: Record<Phase, string> = { get bedtime() { return colors.night; }, get morning() { return colors.morning; } };
 
 export default function SettingsScreen() {
@@ -57,7 +58,7 @@ export default function SettingsScreen() {
 
   const importCsv = async () => {
     try {
-      const r = await pickAndImportCsv();
+      const r = await pickAndImport();
       if (!r) return;
       requestSync();
       setImportMsg(
@@ -130,8 +131,11 @@ export default function SettingsScreen() {
           and moving to a new phone. You choose which fields to include.
         </Muted>
         <Button title="Export…" onPress={() => setExporting(true)} small />
-        <Muted>Import a CSV exported from Sleep Journal. Nights you already have are left alone.</Muted>
-        <Button title="Import CSV" onPress={importCsv} small color={colors.chip} textColor={colors.text} />
+        <Muted>
+          Import a .csv or .xlsx exported from Sleep Journal, or your Google Sheet downloaded as .xlsx.
+          Nights you already have are left alone.
+        </Muted>
+        <Button title="Import .csv or .xlsx" onPress={importCsv} small color={colors.chip} textColor={colors.text} />
         {importMsg && <Text style={{ color: colors.success }}>{importMsg}</Text>}
       </Card>
 
@@ -167,6 +171,27 @@ export default function SettingsScreen() {
           color={colors.chip} textColor={colors.text} />
       </Card>
 
+      <Card title="Help">
+        <Muted>Found a problem, or have an idea for a feature?</Muted>
+        <Muted>
+          Email{' '}
+          <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="link" selectable
+            onPress={() => Linking.openURL(SUPPORT_MAIL).catch(() => {})}>{SUPPORT_EMAIL}</Text>
+          {' '}with what happened. You can attach your journal as a
+          spreadsheet: it helps with problems. Untick anything you'd rather keep private, like notes or dreams.
+        </Muted>
+        <Button title="Export a spreadsheet to attach" onPress={() => setExporting(true)} small
+          color={colors.chip} textColor={colors.text} />
+        <Muted>
+          Or create a public issue on{' '}
+          <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="link"
+            onPress={() => Linking.openURL(`${REPO_URL}/issues`).catch(() => {})}>
+            {REPO_URL.replace('https://', '')}/issues
+          </Text>
+          . Don't attach your spreadsheet there: everyone can see it.
+        </Muted>
+      </Card>
+
       <Card title="About">
         {/* The build number goes up with every release (scripts/release.js): compare it between devices. */}
         <Text style={{ color: colors.text }} selectable>
@@ -174,12 +199,11 @@ export default function SettingsScreen() {
         </Text>
         <Muted>Published {buildInfo.date || 'from a development copy'}</Muted>
         <Muted>
-          For support and to report issues, go to{' '}
+          Project page and source code:{' '}
           <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="link"
             onPress={() => Linking.openURL(REPO_URL).catch(() => {})}>
             {REPO_URL.replace('https://', '')}
           </Text>
-          .
         </Muted>
       </Card>
     </ScrollView>

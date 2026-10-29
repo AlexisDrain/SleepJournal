@@ -1,7 +1,7 @@
-// A tiny .xlsx writer: just enough of the Office Open XML format for one sheet with
+// A tiny .xlsx writer (and reader, below): just enough of the Office Open XML format for one sheet with
 // color-coded columns. An .xlsx file is a zip of a few XML files; fflate does the zipping.
 // Opens in Google Sheets, Excel and Numbers with the colors intact.
-import { strToU8, zipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
 export type ColumnGroup = 'other' | 'bedtime' | 'morning';
 export interface SheetColumn { header: string; group: ColumnGroup; width: number }
@@ -99,5 +99,92 @@ export function buildXlsx(sheetName: string, columns: SheetColumn[], rows: Sheet
 </Relationships>`),
     'xl/styles.xml': xml(stylesXml()),
     'xl/worksheets/sheet1.xml': xml(sheetXml(columns, rows)),
+  });
+}
+
+// ---------- reading ----------
+// Enough to read back a journal: this app's own exports, and a Google Sheet or Excel file saved
+// as .xlsx (several tabs, shared strings, real date and time cells). Every cell comes out as text,
+// the way it would read in a CSV.
+
+const unesc = (s: string) =>
+  s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, e: string) =>
+    e[0] === '#' ? String.fromCodePoint(parseInt(e.slice(e[1] === 'x' || e[1] === 'X' ? 2 : 1), e[1] === 'x' || e[1] === 'X' ? 16 : 10))
+    : ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" } as Record<string, string>)[e.toLowerCase()]);
+const attr = (tag: string, name: string) => tag.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`))?.[1];
+/** All the text runs inside a string item (<si> or <is>), joined. */
+const runs = (xml: string) => [...xml.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((m) => unesc(m[1])).join('');
+
+/** Built-in number formats that are dates or times (the rest of 0-49 are numbers, text…). */
+const DATE_FORMATS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47]);
+const isDateCode = (code: string) => /[ymdhs]/i.test(code.replace(/"[^"]*"|\[[^\]]*\]|\\./g, ''));
+
+/** A spreadsheet date/time number → "2026-10-23", "23:30" or "2026-10-23 23:30". */
+function fromSerial(serial: number): string {
+  let days = Math.floor(serial);
+  let minutes = Math.round((serial - days) * 1440);
+  if (minutes === 1440) (days += 1), (minutes = 0);
+  const time = `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+  if (days === 0) return time;
+  const date = new Date(Date.UTC(1899, 11, 30) + days * 86_400_000).toISOString().slice(0, 10);
+  return minutes === 0 ? date : `${date} ${time}`;
+}
+
+/** 'B' → 1, 'AA' → 26 */
+const colIndex = (letters: string) => [...letters].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0) - 1;
+
+export interface ReadSheet { name: string; rows: string[][] }
+
+export function readXlsx(bytes: Uint8Array): ReadSheet[] {
+  let files: Record<string, Uint8Array>;
+  try {
+    files = unzipSync(bytes);
+  } catch {
+    throw new Error("This file can't be read as an .xlsx spreadsheet.");
+  }
+  const text = (path: string) => (files[path] ? strFromU8(files[path]) : '');
+  if (!files['xl/workbook.xml']) throw new Error("This file can't be read as an .xlsx spreadsheet.");
+
+  const shared = [...text('xl/sharedStrings.xml').matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => runs(m[1]));
+
+  // Which cell styles show a date or time.
+  const styles = text('xl/styles.xml');
+  const custom = new Map([...styles.matchAll(/<numFmt\b[^>]*>/g)].map((m) => [Number(attr(m[0], 'numFmtId')), unesc(attr(m[0], 'formatCode') ?? '')]));
+  const xfs = styles.match(/<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/)?.[1] ?? '';
+  const dateStyle = [...xfs.matchAll(/<xf\b[^>]*>/g)].map((m) => {
+    const id = Number(attr(m[0], 'numFmtId') ?? 0);
+    return DATE_FORMATS.has(id) || (custom.has(id) && isDateCode(custom.get(id)!));
+  });
+
+  const rels = new Map([...text('xl/_rels/workbook.xml.rels').matchAll(/<Relationship\b[^>]*>/g)]
+    .map((m) => [attr(m[0], 'Id'), attr(m[0], 'Target') ?? '']));
+  return [...text('xl/workbook.xml').matchAll(/<sheet\b[^>]*>/g)].map((m) => {
+    const target = rels.get(attr(m[0], 'r:id')) ?? '';
+    const path = target.startsWith('/') ? target.slice(1) : `xl/${target}`;
+    const rows: string[][] = [];
+    for (const row of text(path).matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+      const cells: string[] = [];
+      let next = 0;
+      for (const c of row[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const ref = attr(c[1], 'r');
+        const at = ref ? colIndex(ref.replace(/\d+/g, '')) : next;
+        next = at + 1;
+        const body = c[2] ?? '';
+        const v = body.match(/<v>([\s\S]*?)<\/v>/)?.[1];
+        const type = attr(c[1], 't');
+        let value = '';
+        if (type === 's') value = v === undefined ? '' : shared[Number(v)] ?? '';
+        else if (type === 'inlineStr') value = runs(body);
+        else if (type === 'b') value = v === '1' ? 'TRUE' : 'FALSE';
+        else if (type === 'str' || type === 'e') value = unesc(v ?? '');
+        else if (v !== undefined) {
+          const n = Number(v);
+          value = dateStyle[Number(attr(c[1], 's') ?? 0)] ? fromSerial(n) : String(Number(n.toPrecision(12)));
+        }
+        cells[at] = value;
+      }
+      rows.push(Array.from(cells, (x) => x ?? ''));
+    }
+    return { name: unesc(attr(m[0], 'name') ?? ''), rows: rows.filter((r) => r.some((x) => x.trim() !== '')) };
   });
 }

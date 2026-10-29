@@ -19,6 +19,7 @@ import { colors, space, tints } from '@/lib/theme';
 import { useThemeName } from '@/lib/displayMode';
 
 const ROW_HEIGHT = 34;
+const WEB = Platform.OS === 'web';
 const HEADER_HEIGHT = 44;
 // Dark-theme versions of the export's green / blue / yellow: [header, cell]
 const TINT: Record<ColumnGroup, [string, string]> = {
@@ -26,6 +27,13 @@ const TINT: Record<ColumnGroup, [string, string]> = {
   get bedtime() { return tints.bedtime; },
   get morning() { return tints.morning; },
 };
+/** Every other row a shade lighter (dark display) or darker (light), so a row is easy to follow sideways. */
+const STRIPE = 0.06;
+function striped(hex: string, theme: string): string {
+  const to = theme === 'light' ? 0 : 255;
+  return '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - STRIPE) + to * STRIPE)
+    .toString(16).padStart(2, '0')).join('');
+}
 const widthOf = (c: SheetColumn) => Math.max(72, Math.round(c.width * 8.5));
 
 const yearOf = (row: SheetValue[]) => String(row[0] ?? '').match(/\d{4}/)?.[0] ?? '';
@@ -39,6 +47,7 @@ export default function SheetScreen() {
   const [error, setError] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
   const [ordering, setOrdering] = useState(false);
+  const [exporting, setExporting] = useState(false); // the same Export panel as in Settings
   const [reading, setReading] = useState<{ title: string; night: string; text: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -136,7 +145,8 @@ export default function SheetScreen() {
     const step = Math.max(120, viewWidth - pinnedWidth - 40);
     const x = Math.max(0, Math.min(totalWidth - viewWidth, offset.current + direction * step));
     // Smooth on phones; instant on the web, where a browser can skip the animation (e.g. in a background tab).
-    scroller.current?.scrollTo({ x, animated: Platform.OS !== 'web' });
+    if (WEB) (list.current?.getScrollableNode() as HTMLElement | undefined)?.scrollTo({ left: x });
+    else scroller.current?.scrollTo({ x, animated: true });
     // Record where we are now instead of waiting for a scroll event to say so, so the next tap
     // continues from here and the arrows update at once.
     updateArrows(x);
@@ -157,10 +167,65 @@ export default function SheetScreen() {
     </Animated.View>
   );
 
+  // Built ahead of the JSX (the web puts it inside the list), so only once there are columns.
+  const header = columns.length === 0 ? null : (
+    <View style={{ flexDirection: 'row', width: totalWidth, height: HEADER_HEIGHT, zIndex: 2 }}>
+      {columns.map((c, i) => (
+        <View key={c.header} style={{
+          width: widthOf(c), backgroundColor: TINT[c.group][0], justifyContent: 'center', paddingHorizontal: 8,
+          borderRightWidth: 1, borderRightColor: colors.bg,
+        }}>
+          {i > 0 && <Text numberOfLines={2} style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{c.header}</Text>}
+        </View>
+      ))}
+      {pinned(columns[0].header, TINT[columns[0].group][0], HEADER_HEIGHT, true)}
+    </View>
+  );
+  const table = (
+    <FlatList
+      key={year}
+      extraData={theme}
+      ref={list}
+      // Web: this one box scrolls both ways, and the header sticks to its top.
+      style={WEB ? ({ flex: 1, overflowX: 'auto' } as object) : undefined}
+      contentContainerStyle={WEB ? { width: totalWidth } : undefined}
+      ListHeaderComponent={WEB && header ? header : undefined}
+      stickyHeaderIndices={WEB ? [0] : undefined}
+      onScroll={WEB ? onScroll : undefined}
+      scrollEventThrottle={16}
+      onContentSizeChange={(_, h) => jumpToEnd(h)}
+      data={rows}
+      keyExtractor={(r, i) => String(r[0] ?? i)}
+      getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: (WEB ? HEADER_HEIGHT : 0) + ROW_HEIGHT * index, index })}
+      initialNumToRender={30}
+      windowSize={7}
+      renderItem={({ item, index }) => (
+          <View style={{ flexDirection: 'row', height: ROW_HEIGHT }}>
+            {columns.map((c, i) => (
+              <View key={c.header} style={{
+                width: widthOf(c), backgroundColor: index % 2 ? striped(TINT[c.group][1], theme) : TINT[c.group][1],
+                justifyContent: 'center', paddingHorizontal: 8, borderRightWidth: 1, borderRightColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.bg,
+              }}>
+                {i > 0 && (TEXT_COLUMNS.includes(c.header) && item[i]
+                  // Notes, dreams and tags are often longer than the cell: tap to read all of it.
+                  ? <Pressable onPress={() => setReading({ title: c.header, night: String(item[0] ?? ''), text: String(item[i]) })}
+                      accessibilityRole="button" accessibilityLabel={`Read ${c.header}`}>
+                      <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, textDecorationLine: 'underline', textDecorationColor: colors.muted }}>{item[i]}</Text>
+                    </Pressable>
+                  : <Text numberOfLines={1} style={{ color: typeof item[i] === 'number' && (item[i] as number) < 0 ? colors.danger : colors.text, fontSize: 13 }}>{item[i] ?? ''}</Text>)}
+              </View>
+            ))}
+            {pinned(String(item[0] ?? ''), index % 2 ? striped(TINT[columns[0].group][1], theme) : TINT[columns[0].group][1], ROW_HEIGHT, false)}
+          </View>
+      )}
+    />
+  );
+
   return (
     <View style={styles.screen}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}>
-        <View style={{ flex: 1 }}>
+      {/* Three buttons don't fit beside the count on a phone: there they wrap onto their own line. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}>
+        <View style={{ flexGrow: 1, flexBasis: 220 }}>
           <Muted>
             {loading
               ? 'Loading…'
@@ -169,6 +234,7 @@ export default function SheetScreen() {
         </View>
         <Button title="Column settings" small onPress={() => setChoosing(true)} color={colors.chip} textColor={colors.text} />
         <Button title="Column order" small onPress={() => setOrdering(true)} color={colors.chip} textColor={colors.text} />
+        <Button title="Export…" small onPress={() => setExporting(true)} />
       </View>
       {error && <View style={{ paddingHorizontal: space.lg }}><ErrorBox message={error} onRetry={load} /></View>}
       {years.length > 1 && (
@@ -194,59 +260,24 @@ export default function SheetScreen() {
           setMeasuredWidth(w);
           updateArrows(offset.current, w);
         }}>
-          {/* Sideways scrolling moves the header and rows together; the rows scroll up and down under the header. */}
-          <Animated.ScrollView
-            ref={scroller}
-            horizontal
-            persistentScrollbar
-            style={{ flex: 1 }}
-            contentContainerStyle={{ width: totalWidth }}
-            scrollEventThrottle={16}
-            onScroll={onScroll}>
-            <View style={{ width: totalWidth, flex: 1 }}>
-              <View style={{ flexDirection: 'row', height: HEADER_HEIGHT, zIndex: 2 }}>
-                {columns.map((c, i) => (
-                  <View key={c.header} style={{
-                    width: widthOf(c), backgroundColor: TINT[c.group][0], justifyContent: 'center', paddingHorizontal: 8,
-                    borderRightWidth: 1, borderRightColor: colors.bg,
-                  }}>
-                    {i > 0 && <Text numberOfLines={2} style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{c.header}</Text>}
-                  </View>
-                ))}
-                {pinned(columns[0].header, TINT[columns[0].group][0], HEADER_HEIGHT, true)}
+          {/* Phones: sideways scrolling moves the header and rows together, and the rows scroll up and
+              down under it. Web: the rows scroll both ways in one box, so a mouse wheel, trackpad,
+              finger or middle-click scroll can go any direction. */}
+          {WEB ? table : (
+            <Animated.ScrollView
+              ref={scroller}
+              horizontal
+              persistentScrollbar
+              style={{ flex: 1 }}
+              contentContainerStyle={{ width: totalWidth }}
+              scrollEventThrottle={16}
+              onScroll={onScroll}>
+              <View style={{ width: totalWidth, flex: 1 }}>
+                {header}
+                {table}
               </View>
-              <FlatList
-                key={year}
-                extraData={theme}
-                ref={list}
-                onContentSizeChange={(_, h) => jumpToEnd(h)}
-                data={rows}
-                keyExtractor={(r, i) => String(r[0] ?? i)}
-                getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
-                initialNumToRender={30}
-                windowSize={7}
-                renderItem={({ item }) => (
-                    <View style={{ flexDirection: 'row', height: ROW_HEIGHT }}>
-                      {columns.map((c, i) => (
-                        <View key={c.header} style={{
-                          width: widthOf(c), backgroundColor: TINT[c.group][1], justifyContent: 'center', paddingHorizontal: 8,
-                          borderRightWidth: 1, borderRightColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.bg,
-                        }}>
-                          {i > 0 && (TEXT_COLUMNS.includes(c.header) && item[i]
-                            // Notes, dreams and tags are often longer than the cell: tap to read all of it.
-                            ? <Pressable onPress={() => setReading({ title: c.header, night: String(item[0] ?? ''), text: String(item[i]) })}
-                                accessibilityRole="button" accessibilityLabel={`Read ${c.header}`}>
-                                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, textDecorationLine: 'underline', textDecorationColor: colors.muted }}>{item[i]}</Text>
-                              </Pressable>
-                            : <Text numberOfLines={1} style={{ color: typeof item[i] === 'number' && (item[i] as number) < 0 ? colors.danger : colors.text, fontSize: 13 }}>{item[i] ?? ''}</Text>)}
-                        </View>
-                      ))}
-                      {pinned(String(item[0] ?? ''), TINT[columns[0].group][1], ROW_HEIGHT, false)}
-                    </View>
-                )}
-              />
-            </View>
-          </Animated.ScrollView>
+            </Animated.ScrollView>
+          )}
 
           {scrollable && more.right && <EdgeArrow side="right" onPress={() => jump(1)} />}
           {more.left && <EdgeArrow side="left" inset={pinnedWidth} onPress={() => jump(-1)} />}
@@ -281,6 +312,7 @@ export default function SheetScreen() {
         </View>
       </Panel>
 
+      <ExportSheet visible={exporting} onClose={() => setExporting(false)} onError={setError} />
       <ExportSheet mode="view" visible={choosing} onError={setError}
         onClose={() => {
           setChoosing(false);

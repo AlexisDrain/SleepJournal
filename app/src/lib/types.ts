@@ -44,6 +44,8 @@ export interface RoutineItem {
   uid: string;
   /** When the item itself (name, order, hidden…) last changed: "2026-10-06T18:30:00Z", '' = never. */
   updatedAt: string;
+  /** Hidden: the first night it stopped counting ("2026-10-28"). Earlier nights still show it. */
+  hiddenSince: string | null;
 }
 
 export interface Nap { id: number; startAt: string; endAt: string | null; note: string | null }

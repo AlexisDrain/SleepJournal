@@ -154,6 +154,15 @@ export const MIGRATIONS: string[] = [
   -- rested stays empty instead of going back to 3.
   ALTER TABLE entries ADD COLUMN rested_skipped INTEGER NOT NULL DEFAULT 0 CHECK (rested_skipped IN (0, 1));
   `,
+
+  // 6 — when a routine item was hidden, so earlier nights keep it in their summary
+  `
+  -- The first night (YYYY-MM-DD) the item no longer counts. NULL = not hidden, or hidden before
+  -- this was kept and with no date to go on (then it's left out of every night, as before).
+  ALTER TABLE routine_items ADD COLUMN hidden_since TEXT;
+  -- Items already hidden: their last edit is the best guess for when.
+  UPDATE routine_items SET hidden_since = date(updated_at) WHERE archived = 1 AND updated_at <> '';
+  `,
 ];
 
 export async function migrate(db: SQLiteDatabase) {

@@ -15,3 +15,7 @@ export async function shareFile(name: string, content: string | Uint8Array, mime
 export async function readPickedText(asset: DocumentPickerAsset): Promise<string> {
   return new File(asset.uri).textSync();
 }
+
+export async function readPickedBytes(asset: DocumentPickerAsset): Promise<Uint8Array> {
+  return new File(asset.uri).bytes();
+}

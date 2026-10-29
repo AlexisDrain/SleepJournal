@@ -17,3 +17,7 @@ export async function readPickedText(asset: DocumentPickerAsset): Promise<string
   if (asset.file) return asset.file.text();
   return (await fetch(asset.uri)).text();
 }
+
+export async function readPickedBytes(asset: DocumentPickerAsset): Promise<Uint8Array> {
+  return new Uint8Array(await (asset.file ?? (await fetch(asset.uri))).arrayBuffer());
+}

@@ -12,6 +12,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadExcluded, loadRoutineDetail } from '@/lib/exportPrefs';
 import { secureStorage } from '@/lib/secureStorage';
+import { currentNight } from '@/lib/time';
 import type { RoutineItem, RoutinePhase } from '@/lib/types';
 import { isEmptyRow, routineColumnsFor, rowToPatch, sheetPayload } from './csv';
 import { getDb, store, writeEntry } from './store';
@@ -190,6 +191,9 @@ async function syncRoutine(conn: Connection): Promise<boolean> {
   const paired = new Set<number>();
   let changed = false;
   const db = await getDb();
+  // Hidden on another device: from the night of that edit (the sheet doesn't keep the night itself).
+  const hiddenFrom = (r: SheetRoutineItem, mine?: RoutineItem) =>
+    !r.hidden ? null : mine?.archived ? mine.hiddenSince : r.updated ? currentNight(new Date(r.updated)) : null;
   await transaction(db, async (tx) => {
     for (const r of remote) {
       let mine = local.find((l) => l.uid === r.id);
@@ -197,8 +201,8 @@ async function syncRoutine(conn: Connection): Promise<boolean> {
       mine ??= local.find((l) => !paired.has(l.id) && !remoteIds.has(l.uid) && l.phase === r.phase && l.label === r.label);
       if (!mine) {
         await tx.runAsync(
-          `INSERT INTO routine_items (uid, label, phase, kind, sort_order, archived, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          r.id, r.label, r.phase, r.kind, r.order, Number(r.hidden), r.updated,
+          `INSERT INTO routine_items (uid, label, phase, kind, sort_order, archived, updated_at, hidden_since) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          r.id, r.label, r.phase, r.kind, r.order, Number(r.hidden), r.updated, hiddenFrom(r),
         );
         changed = true;
         continue;
@@ -207,8 +211,8 @@ async function syncRoutine(conn: Connection): Promise<boolean> {
       if (listKey([toSheetItem(mine)]) === listKey([r])) continue;
       if (known && r.updated < mine.updatedAt) continue; // this device's edit is newer: it is sent below
       await tx.runAsync(
-        `UPDATE routine_items SET uid = ?, label = ?, phase = ?, kind = ?, sort_order = ?, archived = ?, updated_at = ? WHERE id = ?`,
-        r.id, r.label, r.phase, r.kind, r.order, Number(r.hidden), r.updated, mine.id,
+        `UPDATE routine_items SET uid = ?, label = ?, phase = ?, kind = ?, sort_order = ?, archived = ?, updated_at = ?, hidden_since = ? WHERE id = ?`,
+        r.id, r.label, r.phase, r.kind, r.order, Number(r.hidden), r.updated, hiddenFrom(r, mine), mine.id,
       );
       changed = true;
     }
