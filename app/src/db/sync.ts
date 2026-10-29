@@ -142,13 +142,14 @@ export async function connect(urlInput: string, keyInput = ''): Promise<string> 
 export async function resendAllNights(): Promise<void> {
   if (!(await getConnection())) return;
   await syncNow().catch(() => {}); // offline: the nights are still marked and go out on the next sync
-  await (await getDb()).runAsync(`UPDATE entries SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`);
+  // Later than anything already sent: a night merged in the last sync can be dated a second ahead.
+  await (await getDb()).runAsync(`UPDATE entries SET updated_at = ?`, laterThan((await getSyncState()).lastPushed));
   requestSync(0);
 }
 
 /** Now, but at least a second after `time`, so the sheet sees this copy as the newer one. */
 const laterThan = (time: string) =>
-  new Date(Math.max(Date.now(), Date.parse(time) + 1000)).toISOString().slice(0, 19) + 'Z';
+  new Date(Math.max(Date.now(), Date.parse(time) + 1000 || 0)).toISOString().slice(0, 19) + 'Z';
 
 /** A night from the sheet, minus the fields this device changed and hasn't sent yet. */
 function withoutFields(patch: EntryPatch, keep: Set<string>): EntryPatch {
