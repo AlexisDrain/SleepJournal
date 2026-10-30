@@ -9,9 +9,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import { addDays, toDateString, toLocalIso, weekdayOf } from '@/lib/time';
 import type { Entry, EntryPatch, Phase, RoutineItem, RoutinePhase, RoutineValue } from '@/lib/types';
 import { readPickedBytes, readPickedText, shareFile } from './files';
-import { getDb, store, writeEntry } from './store';
+import { getDb, hoursBy, store, writeEntry } from './store';
 import { buildXlsx, readXlsx, type ColumnGroup, type SheetColumn, type SheetValue } from './xlsx';
 import { transaction } from './transaction';
+import { advancedReady } from '@/lib/advanced';
 import { clockFormatReady, formatTime } from '@/lib/clockFormat';
 import { formatSheetDate, getDateStyle, localePrefsReady } from '@/lib/localePrefs';
 
@@ -136,7 +137,7 @@ export const REQUIRED_COLUMN = 'Night of';
  * first one compact summary column, then one detail column per item (hidden items too).
  */
 async function allColumns(): Promise<Column[]> {
-  await Promise.all([clockFormatReady, localePrefsReady]); // saved time and date styles, never a guess
+  await Promise.all([clockFormatReady, localePrefsReady, advancedReady]); // saved time and date styles, never a guess
   const items = await store.routine.list();
   // The app never asks for "Times woke up" (it only comes from imported spreadsheets), so the column
   // only appears for journals that have such numbers. New journals don't get an always-empty column.
@@ -210,7 +211,9 @@ export async function sheetPayload(entries: Entry[], options: ExportOptions = {}
     rows: entries.map((e) => ({
       nightOf: e.nightOf,
       updated: e.updatedAt,
-      values: Object.fromEntries(columns.map((c) => [c.header, c.header === REQUIRED_COLUMN ? e.nightOf : c.value(e) ?? null])),
+      // The sheet always gets the same count of hours; each device's own choice is only for its display.
+      values: Object.fromEntries(columns.map((c) => [c.header,
+        c.header === REQUIRED_COLUMN ? e.nightOf : c.header === 'Hours asleep' ? hoursBy('tried-woke', e) : c.value(e) ?? null])),
     })),
   };
 }

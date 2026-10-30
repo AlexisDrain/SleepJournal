@@ -8,12 +8,14 @@ import { Button, Card, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { exportStats } from '@/db/csv';
 import { store } from '@/db/store';
 import { onPulled } from '@/db/sync';
+import { useHoursMethod } from '@/lib/advanced';
 import { useHour24 } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
 import { formatAfterMidnight, formatAfterNoon, summarize } from '@/lib/stats';
 import { colors, radius, space } from '@/lib/theme';
 import { loadHiddenStatsColumns, saveHiddenStatsColumns } from '@/lib/statsPrefs';
 import { addDays, currentNight, dayLabel, formatClock, formatDuration } from '@/lib/time';
+import { usePullToSync } from '@/lib/usePullToSync';
 import { page, useWide, WIDE_PAGE, NARROW_PAGE } from '@/lib/useLayout';
 import type { Entry } from '@/lib/types';
 
@@ -32,6 +34,8 @@ export default function StatsScreen() {
   useThemeName(); // redraw when the display changes (dark / light)
   useHour24();
   const wide = useWide();
+  const pullControl = usePullToSync();
+  const hoursMethod = useHoursMethod();
   const [period, setPeriod] = useState(1);
   const [year, setYear] = useState<string | null>(null); // a calendar year instead of a period
   const [years, setYears] = useState<string[]>([]);
@@ -66,7 +70,7 @@ export default function StatsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, hoursMethod]);
   useFocusEffect(useCallback(() => void load(), [load]));
   useEffect(() => onPulled(() => void load()), [load]);
 
@@ -152,6 +156,7 @@ export default function StatsScreen() {
       <FlatList
         style={styles.screen}
         contentContainerStyle={[styles.scroll, page(wide ? WIDE_PAGE : NARROW_PAGE)]}
+        refreshControl={pullControl}
         // Phones draw the whole table in the header (it scrolls sideways); wide screens list the rows.
         data={wide ? shown : []}
         keyExtractor={(e) => e.nightOf}
@@ -237,10 +242,14 @@ const COLUMNS: Col[] = [
   { id: 'hours', label: 'Hours asleep', flex: 0.8, width: 70, right: true, exports: ['Hours asleep'],
     cell: (e) => ({ text: e.hoursAsleep === null ? '—' : String(e.hoursAsleep), bold: true,
       color: e.hoursAsleep === null ? colors.muted : e.hoursAsleep < 0 ? colors.danger : colors.success }) },
+  { id: 'bed', label: 'Got in bed', flex: 1, width: 92, exports: ['In bed'],
+    cell: (e) => ({ text: e.inBedAt ? formatClock(e.inBedAt) : '—' }) },
   { id: 'tried', label: 'Tried to sleep', flex: 1, width: 92, exports: ['Tried to sleep'],
     cell: (e) => { const t = e.triedSleepAt ?? e.inBedAt; return { text: t ? formatClock(t) : '—' }; } },
   { id: 'latency', label: 'To fall asleep', flex: 0.9, width: 92, exports: ['Minutes to fall asleep'],
     cell: (e) => ({ text: e.sleepLatencyMin === null ? '—' : formatDuration(e.sleepLatencyMin) }) },
+  { id: 'woke', label: 'Woke up', flex: 1, width: 92, exports: ['Woke up'],
+    cell: (e) => ({ text: e.wokeAt ? formatClock(e.wokeAt) : '—' }) },
   { id: 'started', label: 'Started day', flex: 1, width: 92, exports: ['Started day'],
     cell: (e) => { const t = e.dayStartedAt ?? e.wokeAt; return { text: t ? formatClock(t) : '—' }; } },
   { id: 'tags', label: 'Tags', flex: 1.4, width: 150, exports: ['Tags'],

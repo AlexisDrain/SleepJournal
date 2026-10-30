@@ -8,7 +8,8 @@ import { Button, Card, Chip, ErrorBox, Muted, Row, styles } from '@/components/u
 import { pickAndImport } from '@/db/csv';
 import buildInfo from '@/lib/buildInfo.json';
 import { requestSync, resendAllNights } from '@/db/sync';
-import { setCombine, useCombine } from '@/lib/advanced';
+import { HOURS_METHODS, setCombine, setHoursMethod, useCombine, useHoursMethod } from '@/lib/advanced';
+import { usePullToSync } from '@/lib/usePullToSync';
 import { formatSheetDate, setDateStyle, setMondayFirst, useDateStyle, useMondayFirst, type DateStyle } from '@/lib/localePrefs';
 import { setHour24, useHour24 } from '@/lib/clockFormat';
 import { DAY_ENDS, DAY_STARTS, setDisplayMode, useDisplayMode, type DisplayMode } from '@/lib/displayMode';
@@ -33,6 +34,8 @@ const SUPPORT_MAIL = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Slee
 const PHASE_COLOR: Record<Phase, string> = { get bedtime() { return colors.night; }, get morning() { return colors.morning; } };
 
 export default function SettingsScreen() {
+  const pullControl = usePullToSync();
+  const hoursMethod = useHoursMethod();
   useThemeName(); // redraw when the display changes (dark / light)
   const [error, setError] = useState<string | null>(null);
   const [reminders, setReminders] = useState<Partial<Record<Phase, Reminder>>>({});
@@ -73,7 +76,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.scroll, page(NARROW_PAGE)]}>
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.scroll, page(NARROW_PAGE)]} refreshControl={pullControl}>
       {error && <ErrorBox message={error} onRetry={load} />}
 
       <Card title="Display">
@@ -151,6 +154,17 @@ export default function SettingsScreen() {
         <Muted>
           The Journal asks one time instead of two. It's saved in both columns, so the spreadsheet and
           hours asleep keep working.
+        </Muted>
+        <Text style={{ color: colors.text, fontSize: 16, marginTop: space.sm }}>Hours asleep counts</Text>
+        <View style={styles.chips}>
+          {HOURS_METHODS.map(([method, label]) => (
+            <Chip key={method} label={label} selected={hoursMethod === method}
+              onPress={() => void setHoursMethod(method)} />
+          ))}
+        </View>
+        <Muted>
+          The time to fall asleep is taken off each time. This changes what this device shows in Stats, the
+          Sheet tab and exports. Your Google Sheet always counts Trying to sleep → Woke up.
         </Muted>
         <Text style={{ color: colors.text, fontSize: 16, marginTop: space.sm }}>Dates in spreadsheets</Text>
         <View style={styles.chips}>

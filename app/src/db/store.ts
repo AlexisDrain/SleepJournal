@@ -1,5 +1,6 @@
 // All reads and writes go through here: plain SQL against the SQLite file on the phone.
 import * as SQLite from 'expo-sqlite';
+import { getHoursMethod, type HoursMethod } from '@/lib/advanced';
 import { currentNight, weekdayOf } from '@/lib/time';
 import type { Entry, EntryPatch, Nap, RoutineItem, RoutinePhase, Tag } from '@/lib/types';
 import { migrate } from './migrations';
@@ -54,8 +55,19 @@ const SELECT_ENTRY = `
 
 type EntryRow = Omit<Entry, 'weekday' | 'tags' | 'routine' | 'restedSkipped'> & { tags: string; routine: string; restedSkipped: number };
 
+type Times = Pick<Entry, 'inBedAt' | 'triedSleepAt' | 'sleepLatencyMin' | 'wokeAt' | 'dayStartedAt'>;
+
+/** Hours asleep counted one of the ways in Settings → Advanced. */
+export function hoursBy(method: HoursMethod, e: Times): number | null {
+  const from = method.startsWith('bed') ? e.inBedAt : e.triedSleepAt;
+  const to = method.endsWith('started') ? e.dayStartedAt : e.wokeAt;
+  if (!from || !to) return null;
+  return Math.round(((Date.parse(to) - Date.parse(from)) / 3_600_000 - (e.sleepLatencyMin ?? 0) / 60) * 100) / 100;
+}
+
 const toEntry = (r: EntryRow): Entry => ({
   ...r,
+  hoursAsleep: getHoursMethod() === 'tried-woke' ? r.hoursAsleep : hoursBy(getHoursMethod(), r), // what this device shows
   restedSkipped: r.restedSkipped === 1,
   weekday: weekdayOf(r.nightOf),
   tags: JSON.parse(r.tags),

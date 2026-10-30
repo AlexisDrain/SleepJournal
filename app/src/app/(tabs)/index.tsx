@@ -4,7 +4,7 @@
 // before it. New users get one question at a time; "Show everything" puts it all on one page.
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import { CalendarSheet } from '@/components/CalendarSheet';
 import { Panel } from '@/components/Panel';
 import { SyncChip } from '@/components/SyncChip';
@@ -28,6 +28,7 @@ import { useThemeName } from '@/lib/displayMode';
 import { usePhaseOrder } from '@/lib/phaseOrder';
 import type { Entry, EntryPatch, Phase, Tag } from '@/lib/types';
 import { useAutosave, type SaveStatus } from '@/lib/useAutosave';
+import { usePullToSync } from '@/lib/usePullToSync';
 import { useDraft } from '@/lib/useDraft';
 import { useEntry } from '@/lib/useEntry';
 import { NARROW_PAGE, page, useWide, WIDE_PAGE } from '@/lib/useLayout';
@@ -38,6 +39,7 @@ const RETARGET_AFTER_MS = 10 * 60_000; // coming back after this long re-picks w
 const other = (p: Phase): Phase => (p === 'bedtime' ? 'morning' : 'bedtime');
 
 export default function JournalScreen() {
+  const pullControl = usePullToSync();
   useThemeName(); // redraw when the display changes (dark / light)
   const { night } = useLocalSearchParams<{ night?: string }>(); // "/?night=2026-10-05" opens that night
   const [nightOf, setNightOf] = useState(night ?? currentNight());
@@ -166,8 +168,9 @@ export default function JournalScreen() {
     isFilled({ inBedAt: draft.get('inBedAt'), triedSleepAt: draft.get('triedSleepAt'), wokeAt: draft.get('wokeAt') }, phase);
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView keyboardShouldPersistTaps="handled"
+    <View style={styles.screen}>
+      {/* automaticallyAdjustKeyboardInsets: the list ends at the top of the iPhone keyboard. */}
+      <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets refreshControl={pullControl}
         contentContainerStyle={[styles.scroll, page(wide && !stepPhase ? WIDE_PAGE : NARROW_PAGE)]}>
         <NightSwitcher nightOf={nightOf} onChange={browseTo} onOpenCalendar={() => setCalendarOpen(true)} arrows={!stepPhase}
           onToday={onStartNight || nightOf === due.nightOf ? null : () => void retarget()} />
@@ -249,7 +252,7 @@ export default function JournalScreen() {
           setCalendarOpen(false);
           browseTo(n);
         }} />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

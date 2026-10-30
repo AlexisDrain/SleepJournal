@@ -5,16 +5,18 @@
 //
 // The date column stays put while the rest scrolls sideways, and edge arrows show (and jump to)
 // the columns that are off screen, so it's clear on a phone that there is more to the right.
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, Animated, FlatList, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { ExportSheet } from '@/components/ExportSheet';
 import { Button, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { buildTable } from '@/db/csv';
+import { onPulled } from '@/db/sync';
 import type { ColumnGroup, SheetColumn, SheetValue } from '@/db/xlsx';
 import { arrangeColumns, loadColumnOrder, loadExcluded, loadFillGaps, loadRoutineDetail, saveColumnOrder, TEXT_COLUMNS } from '@/lib/exportPrefs';
 import { Panel } from '@/components/Panel';
 import { SortableList } from '@/components/SortableList';
+import { usePullToSync } from '@/lib/usePullToSync';
 import { colors, space, tints } from '@/lib/theme';
 import { useThemeName } from '@/lib/displayMode';
 
@@ -40,6 +42,7 @@ const yearOf = (row: SheetValue[]) => String(row[0] ?? '').match(/\d{4}/)?.[0] ?
 
 export default function SheetScreen() {
   const theme = useThemeName(); // redraw when the display changes
+  const pullControl = usePullToSync();
   const [columns, setColumns] = useState<SheetColumn[]>([]);
   const [allRows, setAllRows] = useState<SheetValue[][]>([]);
   const [chosenYear, setChosenYear] = useState<string | null>(null); // null = the latest year
@@ -71,6 +74,7 @@ export default function SheetScreen() {
   // Open at the bottom: the newest night is the last row. Once per opening (or per year picked),
   // as soon as the list reports its size. Browsers don't always report it, so there the jump is
   // also made a moment after the rows are drawn (see the effect below).
+  useEffect(() => onPulled(() => void load()), [load]);
   const list = useRef<FlatList<SheetValue[]>>(null);
   const jumpWanted = useRef(true);
   const [opened, setOpened] = useState(0);
@@ -186,6 +190,7 @@ export default function SheetScreen() {
       key={year}
       extraData={theme}
       ref={list}
+      refreshControl={pullControl}
       // Web: this one box scrolls both ways, and the header sticks to its top.
       style={WEB ? ({ flex: 1, overflowX: 'auto' } as object) : undefined}
       contentContainerStyle={WEB ? { width: totalWidth } : undefined}
@@ -226,6 +231,11 @@ export default function SheetScreen() {
       {/* Three buttons don't fit beside the count on a phone: there they wrap onto their own line. */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}>
         <View style={{ flexGrow: 1, flexBasis: 220 }}>
+          <Muted>
+            For an easier-to-read table, see{' '}
+            <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="link"
+              onPress={() => router.navigate('/stats')}>Night by night in Stats</Text>.
+          </Muted>
           <Muted>
             {loading
               ? 'Loading…'

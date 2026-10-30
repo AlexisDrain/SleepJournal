@@ -6,7 +6,7 @@
 // shows its own date and its ticks are saved with that date (see anytimeDay).
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, ScrollView, Text, View } from 'react-native';
 import { CalendarSheet } from '@/components/CalendarSheet';
 import { NightSwitcher, Routine } from '@/components/inputs';
 import { KIND_LABEL, RoutineItemEditor } from '@/components/RoutineItemEditor';
@@ -17,6 +17,7 @@ import { SortableList } from '@/components/SortableList';
 import { Button, Card, Chip, ErrorBox, Input, Muted, Row, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
+import { usePullToSync } from '@/lib/usePullToSync';
 import { anytimeDay, dueSlot, untilHint } from '@/lib/journal';
 import { useHour24 } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
@@ -35,6 +36,7 @@ const SAVE_DELAY_MS = 500;
 const RETURN_TO_NOW_AFTER_MS = 10 * 60_000; // the same wait as the Journal
 
 export default function RoutinesScreen() {
+  const pullControl = usePullToSync();
   useThemeName(); // redraw when the display changes (dark / light)
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false); // false until the lists have been read once: show a spinner, not empty lists
@@ -146,8 +148,9 @@ export default function RoutinesScreen() {
   const hide = (r: RoutineItem) => act(() => store.routine.update(r.id, { archived: true }));
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={[styles.scroll, page(wide ? WIDE_PAGE : NARROW_PAGE)]} keyboardShouldPersistTaps="handled">
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={[styles.scroll, page(wide ? WIDE_PAGE : NARROW_PAGE)]} keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets refreshControl={pullControl}>
         {error && <ErrorBox message={error} onRetry={() => load()} />}
         {!editMode && (
           <NightSwitcher nightOf={nightOf} onChange={goTo} onOpenCalendar={() => setCalendarOpen(true)}
@@ -223,7 +226,7 @@ export default function RoutinesScreen() {
           setCalendarOpen(false);
           goTo(n);
         }} />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -3,13 +3,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEY = 'sleepjournal.statsHiddenColumns.v1';
+/** Columns that start switched off. The marker says that was done, so ticking one on sticks. */
+const OFF_AT_FIRST = ['bed', 'woke'];
+const APPLIED = 'defaults:2';
 
 export async function loadHiddenStatsColumns(): Promise<Set<string>> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    const saved = new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    return saved.has(APPLIED) ? saved : new Set([...saved, ...OFF_AT_FIRST, APPLIED]);
   } catch {
-    return new Set();
+    return new Set([...OFF_AT_FIRST, APPLIED]);
   }
 }
 

@@ -6,6 +6,7 @@ import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { Button, ErrorBox, Input, Muted, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled } from '@/db/sync';
+import { usePullToSync } from '@/lib/usePullToSync';
 import { useThemeName } from '@/lib/displayMode';
 import { colors, space } from '@/lib/theme';
 import { addDays, dayLabel } from '@/lib/time';
@@ -13,6 +14,7 @@ import { NARROW_PAGE, page } from '@/lib/useLayout';
 import type { Entry } from '@/lib/types';
 
 export default function DreamsScreen() {
+  const pullControl = usePullToSync();
   useThemeName(); // redraw when the display changes (dark / light)
   const [dreams, setDreams] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,7 @@ export default function DreamsScreen() {
       data={shown}
       keyExtractor={(e) => e.nightOf}
       keyboardShouldPersistTaps="handled"
+      refreshControl={pullControl}
       ListHeaderComponent={
         <View style={{ gap: space.md }}>
           {error && <ErrorBox message={error} onRetry={load} />}
