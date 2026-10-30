@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, type Theme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { onPulled, requestSync } from '@/db/sync';
@@ -27,6 +27,14 @@ export default function RootLayout() {
     return onPulled(() => void syncReminders().catch(() => {}));
   }, [welcomeSeen]);
 
+  // The navigation library's own colors (it draws, for one, the light-up on hovering a tab in the
+  // side rail with `text`): the app's colors instead of its light defaults.
+  const base = theme === 'light' ? DefaultTheme : DarkTheme;
+  const navTheme: Theme = {
+    ...base,
+    colors: { ...base.colors, primary: colors.night, background: colors.bg, card: colors.card, text: colors.text, border: colors.cardBorder },
+  };
+
   if (welcomeSeen === null || !displayLoaded) return null; // reading saved settings (a few ms)
 
   // Until the welcome is finished only the welcome screen exists; finishing it flips the
@@ -34,14 +42,16 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-        <Stack.Protected guard={welcomeSeen}>
-          <Stack.Screen name="(tabs)" />
-        </Stack.Protected>
-        <Stack.Protected guard={!welcomeSeen}>
-          <Stack.Screen name="welcome" />
-        </Stack.Protected>
-      </Stack>
+      <ThemeProvider value={navTheme}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+          <Stack.Protected guard={welcomeSeen}>
+            <Stack.Screen name="(tabs)" />
+          </Stack.Protected>
+          <Stack.Protected guard={!welcomeSeen}>
+            <Stack.Screen name="welcome" />
+          </Stack.Protected>
+        </Stack>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
