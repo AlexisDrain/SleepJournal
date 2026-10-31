@@ -31,6 +31,15 @@ test('turning one off keeps only the other', async () => {
   await clearReminder('morning');
 });
 
+test('changing the time moves every reminder: none stay at the old time', async () => {
+  await setReminder({ phase: 'bedtime', hour: 22, minute: 30 });
+  await setReminder({ phase: 'bedtime', hour: 21, minute: 15 });
+  const times = [...notif.__scheduled.values()] as Date[];
+  assert.ok(times.length > 0);
+  assert.ok(times.every((t) => t.getHours() === 21 && t.getMinutes() === 15), String(times));
+  await clearReminder('bedtime');
+});
+
 test('a filled check-in gets no reminder; the other nights still do', async () => {
   await setReminder({ phase: 'morning', hour: 10, minute: 0 });
   const night = addDays(currentNight(), 2); // a morning safely in the future

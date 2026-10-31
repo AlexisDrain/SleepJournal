@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { store } from '@/db/store';
 import { isFilled } from './journal';
 import { addDays, currentNight, timeOnNight } from './time';
@@ -54,6 +55,10 @@ const LEGACY_IDS = ['sleep-journal-bedtime', 'sleep-journal-morning'];
 type Prefs = Partial<Record<Phase, Reminder>>;
 
 export async function ensurePermission(): Promise<boolean> {
+  // Android shows its permission prompt only once the app has a notification channel.
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', { name: 'Reminders', importance: Notifications.AndroidImportance.DEFAULT });
+  }
   const current = await Notifications.getPermissionsAsync();
   if (current.granted) return true;
   const req = await Notifications.requestPermissionsAsync({
