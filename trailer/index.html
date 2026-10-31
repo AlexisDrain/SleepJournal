@@ -25,6 +25,7 @@ html, body { background: var(--sky); color: var(--text); }
 body { font-family: var(--ui); padding-inline: 16px; padding-block: 24px; }
 .wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 14px; }
 .viewport { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; overflow: hidden; border-radius: 14px; background: var(--bg); }
+.viewport:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; background: #000; cursor: none; }
 .stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden;
   background: radial-gradient(1200px 700px at 78% -10%, #1b2150 0%, var(--bg) 55%); }
 .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -139,7 +140,7 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
 .gsheet .hd { background: #f1f3f4; padding: 9px 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #dadce0; }
 .gsheet .hd i { width: 14px; height: 18px; border-radius: 2px; background: #2e9e5b; display: inline-block; }
 .gsheet table { border-collapse: collapse; width: 100%; }
-.gsheet th, .gsheet td { border: 1px solid #e0e0e0; padding: 5px 7px; text-align: left; white-space: nowrap; }
+.gsheet th, .gsheet td { border: 1px solid #e0e0e0; padding: 5px 7px; text-align: left; white-space: nowrap; color: #1f2430 !important; }
 .gsheet .h1 { background: #b7e4c7; } .gsheet .c1 { background: #eaf7ef; }
 .gsheet .h2 { background: #b9c4ff; } .gsheet .c2 { background: #eceffd; }
 .gsheet .h3 { background: #ffd98a; } .gsheet .c3 { background: #fff6e0; }
@@ -434,11 +435,12 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
     <button id="play" type="button">Pause</button>
     <button id="restart" type="button">Restart</button>
     <button id="sound" type="button" aria-pressed="false">Sound: off</button>
+    <button id="fullscreen" type="button">Full screen</button>
     <audio id="music" src="Inspired.mp3" preload="auto"></audio>
     <div class="progress" aria-hidden="true"><i id="prog"></i></div>
     <span class="tip" id="clock">0:00 / 0:49</span>
   </div>
-  <p class="tip">To turn this into a video file: press Sound so it says on, make the window full screen, press Restart, and record it with Xbox Game Bar (Win + Alt + R), which records the sound too.</p>
+  <p class="tip">To turn this into a video file: press Sound so it says on, press Full screen (or F; Esc to leave), press Restart, and record it with Xbox Game Bar (Win + Alt + R), which records the sound too.</p>
 </div>
 
 <script>
@@ -452,9 +454,20 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
   const stage = $('stage'), viewport = $('viewport');
 
   // Scale the 1280×720 stage to the window.
-  const fit = () => { stage.style.transform = `scale(${viewport.clientWidth / 1280})`; };
+  // Fits inside the frame and stays centered, so a screen that isn't 16:9 doesn't crop it.
+  const fit = () => {
+    const w = viewport.clientWidth, h = viewport.clientHeight;
+    const scale = Math.min(w / 1280, h / 720);
+    stage.style.transform = `translate(${(w - 1280 * scale) / 2}px, ${(h - 720 * scale) / 2}px) scale(${scale})`;
+  };
   new ResizeObserver(fit).observe(viewport);
   fit();
+
+  const toggleFullscreen = () => (document.fullscreenElement ? document.exitFullscreen() : viewport.requestFullscreen()).catch(() => {});
+  const canFullscreen = !!viewport.requestFullscreen && document.fullscreenEnabled; // not on iPhone Safari, or if the page host blocks it
+  $('fullscreen').hidden = !canFullscreen;
+  $('fullscreen').addEventListener('click', toggleFullscreen);
+  document.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'f' && canFullscreen) toggleFullscreen(); });
 
   // A few fixed stars.
   const stars = $('stars');

@@ -52,6 +52,19 @@ Thank you!
 
 Found a problem or have an idea? [Open an issue](https://github.com/AlexisDrain/SleepJournal/issues).
 
+## Forking
+
+Publishing your own copy? These point at this project, so change them first:
+
+- `app/app.json`: `owner`, `slug`, `extra.eas.projectId` and the `updates.url` built from it, the iOS
+  `bundleIdentifier` and the Android `package`
+- `app/src/lib/links.ts`: `SUPPORT_EMAIL`, `REPO_URL` and `SHEET_TEMPLATE_URL` (your own template sheet)
+
 ## License
 
 MIT, see [LICENSE](LICENSE). Notes for developers are in [DEVELOPING.md](DEVELOPING.md).
+
+Trailer music: "Inspired"
+Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 4.0
+http://creativecommons.org/licenses/by/4.0/

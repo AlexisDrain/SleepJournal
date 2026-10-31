@@ -42,6 +42,14 @@ npx expo start        # scan the QR code with the phone; press w for the web ver
 - **Phone-only parts** have `.web.tsx` / `.web.ts` stand-ins: browser time inputs, downloads instead of
   the share sheet, and no reminders.
 
+## Forking
+
+Publishing your own copy? These point at this project, so change them first:
+
+- `app/app.json`: `owner`, `slug`, `extra.eas.projectId` and the `updates.url` built from it, the iOS
+  `bundleIdentifier` and the Android `package`
+- `app/src/lib/links.ts`: `SUPPORT_EMAIL`, `REPO_URL` and `SHEET_TEMPLATE_URL` (your own template sheet)
+
 ## Releasing
 
 ```bash
@@ -59,7 +67,7 @@ account owns, so other people need a build:
 | Who | How | Cost |
 |---|---|---|
 | You, in Expo Go | `npm run release:phone` | Free |
-| Anyone on Android | `npx eas-cli@latest build -p android --profile preview` → attach the `.apk` to a GitHub Release | Free tier |
+| Anyone on Android | `npx eas-cli@latest build -p android --profile apk` → attach the `.apk` to a GitHub Release | Free tier |
 | Testers on Google Play | `npx eas-cli@latest build -p android --profile production` → upload the `.aab` to a closed test in Play Console | $25 once |
 | Anyone, in a browser | https://sleep-journal.expo.app (EAS Hosting) | Free tier |
 | Anyone on iPhone | TestFlight / App Store | Apple Developer Program |
