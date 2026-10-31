@@ -49,6 +49,8 @@ Publishing your own copy? These point at this project, so change them first:
 - `app/app.json`: `owner`, `slug`, `extra.eas.projectId` and the `updates.url` built from it, the iOS
   `bundleIdentifier` and the Android `package`
 - `app/src/lib/links.ts`: `SUPPORT_EMAIL`, `REPO_URL` and `SHEET_TEMPLATE_URL` (your own template sheet)
+- `google-sheets/README.md`: the same template link
+- `app/eas.json`: `ascAppId`, if you've added one under `submit`
 
 ## Releasing
 
