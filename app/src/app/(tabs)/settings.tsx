@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Linking, ScrollView, Switch, Text, View } from 'react-native';
 import { ExportSheet } from '@/components/ExportSheet';
 import { GoogleSheetCard } from '@/components/GoogleSheetCard';
@@ -15,6 +15,7 @@ import { setHour24, useHour24 } from '@/lib/clockFormat';
 import { DAY_ENDS, DAY_STARTS, setDisplayMode, useDisplayMode, type DisplayMode } from '@/lib/displayMode';
 import { formatHour } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
+import { installedCode, loadApkChecksOff, saveApkChecksOff } from '@/lib/apkUpdate';
 import { REPO_URL, SUPPORT_EMAIL } from '@/lib/links';
 import type { Phase } from '@/lib/types';
 import { clearReminder, ensurePermission, getReminders, plannedReminders, remindersSupported, setReminder, type Reminder } from '@/lib/notifications';
@@ -36,6 +37,8 @@ const PHASE_COLOR: Record<Phase, string> = { get bedtime() { return colors.night
 export default function SettingsScreen() {
   const pullControl = usePullToSync();
   const hoursMethod = useHoursMethod();
+  const [apkChecks, setApkChecks] = useState(true);
+  useEffect(() => { loadApkChecksOff().then((off) => setApkChecks(!off), () => {}); }, []);
   useThemeName(); // redraw when the display changes (dark / light)
   const [error, setError] = useState<string | null>(null);
   const [reminders, setReminders] = useState<Partial<Record<Phase, Reminder>>>({});
@@ -212,6 +215,15 @@ export default function SettingsScreen() {
           Sleep Journal {buildInfo.version} · build {buildInfo.build}
         </Text>
         <Muted>Published {buildInfo.date || 'from a development copy'}</Muted>
+        {installedCode() !== null && (
+          <>
+            <Row label="Check for new Android versions">
+              <Switch value={apkChecks} trackColor={{ true: colors.night }}
+                onValueChange={(v) => { setApkChecks(v); saveApkChecksOff(!v).catch(() => {}); }} />
+            </Row>
+            <Muted>Asks GitHub once a day. GitHub can see your internet address, but nothing about you or your journal is sent.</Muted>
+          </>
+        )}
         <Muted>
           Project page and source code:{' '}
           <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="link"

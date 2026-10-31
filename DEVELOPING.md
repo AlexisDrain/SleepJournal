@@ -64,6 +64,12 @@ account owns, so other people need a build:
 | Anyone, in a browser | https://sleep-journal.expo.app (EAS Hosting) | Free tier |
 | Anyone on iPhone | TestFlight / App Store | Apple Developer Program |
 
+**Android APK on GitHub Releases.** Build with `npx eas-cli@latest build -p android --profile apk`
+(production update channel; the version code goes up by itself), then publish the APK as a GitHub
+release tagged `android-<versionCode>`, e.g. `android-12`. Installed APKs check the latest release
+once a day and offer it if the number is higher. Release a new APK only for native changes; everything
+else reaches them as an update.
+
 Play builds use the `production` update channel; the release script publishes to `preview`, so add
 `production` to it before Play testers rely on updates. The first `eas build` asks for an Android
 package name like `io.github.<your-handle>.sleepjournal`.
