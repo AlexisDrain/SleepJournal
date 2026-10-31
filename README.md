@@ -23,11 +23,11 @@ Publishing your own copy? These point at this project, so change them first:
 - `google-sheets/README.md`: the same template link
 - `app/eas.json`: `ascAppId`, if you've added one under `submit`
 
-## License
+## Credits  
 
-MIT, see [LICENSE](LICENSE). Notes for developers are in [DEVELOPING.md](DEVELOPING.md).
+Developed with Claude Code.  
 
-Trailer music: "Inspired"
-Kevin MacLeod (incompetech.com)
-Licensed under Creative Commons: By Attribution 4.0
-http://creativecommons.org/licenses/by/4.0/
+Trailer music: "Inspired"  
+Kevin MacLeod (incompetech.com)  
+Licensed under Creative Commons: By Attribution 4.0  
+http://creativecommons.org/licenses/by/4.0/  
