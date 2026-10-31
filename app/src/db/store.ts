@@ -195,10 +195,14 @@ async function unsyncedFields(): Promise<Map<string, string>> {
   return new Map(rows.map((r) => [r.nightOf, r.unsynced]));
 }
 
-/** The night reached the sheet as it was then. (Not if it was edited again meanwhile.) */
-async function markSynced(nightOf: string, updatedAt: string, unsynced: string) {
+/**
+ * The night reached the sheet as `sent`. Not if it was edited again meanwhile, so the whole night is
+ * compared: times are kept to the second, so an edit during the send can have the same time.
+ */
+async function markSynced(sent: Entry, unsynced: string) {
+  if (JSON.stringify(await getEntry(sent.nightOf)) !== JSON.stringify(sent)) return;
   await (await getDb()).runAsync(
-    `UPDATE entries SET unsynced = '' WHERE night_of = ? AND updated_at = ? AND unsynced = ?`, nightOf, updatedAt, unsynced);
+    `UPDATE entries SET unsynced = '' WHERE night_of = ? AND updated_at = ? AND unsynced = ?`, sent.nightOf, sent.updatedAt, unsynced);
 }
 
 /** Changes when a night counts as last edited, and nothing else. For the sync. */

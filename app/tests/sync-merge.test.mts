@@ -102,3 +102,19 @@ test('an edit made during a sync goes out right after it, without another trigge
   for (let i = 0; i < 50 && (await store.unsyncedFields()).size > 0; i++) await new Promise((r) => setTimeout(r, 20));
   assert.equal(cell(night, 'Dream'), 'tapped mid-sync');
 });
+
+test('an edit during a send, in the same second and to the same field, still goes out', async () => {
+  const night = '2026-10-24';
+  await store.saveEntry(night, { dream: 'first' });
+  duringPush = async () => {
+    const sameSecond = (await store.getEntry(night))!.updatedAt; // as it's being sent
+    await store.saveEntry(night, { dream: 'second' });
+    await store.redate(night, sameSecond); // times are kept to the second: force the clash
+  };
+  await syncNow();
+  assert.equal(cell(night, 'Dream'), 'first', 'the send that was already on its way');
+  assert.ok((await store.unsyncedFields()).has(night), 'the newer edit is still waiting');
+  await syncNow();
+  assert.equal(cell(night, 'Dream'), 'second');
+  assert.equal((await store.unsyncedFields()).has(night), false);
+});

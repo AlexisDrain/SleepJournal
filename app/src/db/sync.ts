@@ -322,8 +322,10 @@ async function runSync() {
         for (const r of tab.rows) {
           const mine = local.get(r.nightOf);
           if (!mine && isEmptyRow(tab.header, r.cells)) continue;
-          const theirsNewer = !mine || r.updated > mine.updatedAt;
           const keep = new Set((unsynced.get(r.nightOf) ?? '').split(' ').filter(Boolean));
+          // The same time with edits still to send counts as theirs: the sheet refuses an equal
+          // time, so this copy has to be dated later to get through.
+          const theirsNewer = !mine || r.updated > mine.updatedAt || (r.updated === mine.updatedAt && keep.size > 0);
           if (mine && keep.size === 0 && mine.updatedAt > state.lastPushed) {
             // Changed here before this app kept track of which fields: the newer copy wins whole.
             if (!theirsNewer) continue;
@@ -368,7 +370,7 @@ async function runSync() {
       const batch = changed.slice(i, i + PUSH_BATCH);
       const res = await call<{ written: number }>(conn, 'push', await sheetPayload(batch, options));
       pushed += res.written;
-      for (const e of batch) if (sentWith.has(e.nightOf)) await store.markSynced(e.nightOf, e.updatedAt, sentWith.get(e.nightOf)!);
+      for (const e of batch) if (sentWith.has(e.nightOf)) await store.markSynced(e, sentWith.get(e.nightOf)!);
     }
     if (changed.length) state.lastPushed = changed.reduce((max, e) => (e.updatedAt > max ? e.updatedAt : max), state.lastPushed);
     state.layout = layout;
