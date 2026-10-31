@@ -1,6 +1,7 @@
 // All reads and writes go through here: plain SQL against the SQLite file on the phone.
 import * as SQLite from 'expo-sqlite';
 import { getHoursMethod, type HoursMethod } from '@/lib/advanced';
+import { clearWaitingEdits, waitingEdits } from '@/lib/pendingEdits';
 import { currentNight, weekdayOf } from '@/lib/time';
 import type { Entry, EntryPatch, Nap, RoutineItem, RoutinePhase, Tag } from '@/lib/types';
 import { migrate } from './migrations';
@@ -15,6 +16,14 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
     .then(() => SQLite.openDatabaseAsync('sleep-journal.db'))
     .then(async (db) => {
       await migrate(db);
+      // Web: edits still waiting to be saved when the tab was closed.
+      const waiting = waitingEdits();
+      if (waiting.length) {
+        await transaction(db, async (tx) => {
+          for (const w of waiting) await writeEntry(tx, w.nightOf, w.patch);
+        });
+        clearWaitingEdits();
+      }
       return db;
     })
     .catch((e) => {
@@ -192,6 +201,11 @@ async function markSynced(nightOf: string, updatedAt: string, unsynced: string) 
     `UPDATE entries SET unsynced = '' WHERE night_of = ? AND updated_at = ? AND unsynced = ?`, nightOf, updatedAt, unsynced);
 }
 
+/** Changes when a night counts as last edited, and nothing else. For the sync. */
+async function redate(nightOf: string, updatedAt: string) {
+  await (await getDb()).runAsync(`UPDATE entries SET updated_at = ? WHERE night_of = ?`, updatedAt, nightOf);
+}
+
 async function saveEntry(nightOf: string, patch: EntryPatch): Promise<Entry> {
   const db = await getDb();
   await transaction(db, (tx) => writeEntry(tx, nightOf, patch).then(() => {}));
@@ -367,6 +381,7 @@ export const store = {
   deleteEntry,
   unsyncedFields,
   markSynced,
+  redate,
   tags,
   routine,
   naps: table<Nap>('naps', 'start_at DESC', { startAt: 'start_at', endAt: 'end_at', note: 'note' }),

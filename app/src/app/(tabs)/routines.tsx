@@ -17,6 +17,7 @@ import { SortableList } from '@/components/SortableList';
 import { Button, Card, Chip, ErrorBox, Input, Muted, Row, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
+import { forgetEdits, rememberEdits } from '@/lib/pendingEdits';
 import { usePullToSync } from '@/lib/usePullToSync';
 import { anytimeDay, dueSlot, untilHint } from '@/lib/journal';
 import { useHour24 } from '@/lib/clockFormat';
@@ -87,7 +88,10 @@ export default function RoutinesScreen() {
     pending.current = null;
     if (!p) return;
     try {
-      for (const [date, ticks] of Object.entries(p)) await store.saveEntry(date, { routine: ticks });
+      for (const [date, ticks] of Object.entries(p)) {
+        await store.saveEntry(date, { routine: ticks });
+        forgetEdits('routines', date);
+      }
       requestSync(); // to the Google Sheet, if connected
     } catch (e) {
       setError((e as Error).message);
@@ -97,6 +101,7 @@ export default function RoutinesScreen() {
     const date = list === 'anytime' ? anyDay : nightOf;
     (list === 'anytime' ? setAnyValues : setValues)((prev) => ({ ...prev, [id]: v }));
     pending.current = { ...pending.current, [date]: { ...pending.current?.[date], [id]: v } };
+    rememberEdits('routines', date, { routine: pending.current[date] });
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, SAVE_DELAY_MS);
   };
@@ -114,7 +119,9 @@ export default function RoutinesScreen() {
     const sub = AppState.addEventListener('change', (s) => {
       if (s !== 'active') {
         awaySince.current ??= Date.now();
-        void flush();
+        // Leaving the app or tab: save now and send it, instead of waiting for the usual delays.
+        const unsaved = pending.current !== null;
+        void flush().then(() => { if (unsaved) requestSync(0); });
         return;
       }
       const away = awaySince.current ? Date.now() - awaySince.current : 0;

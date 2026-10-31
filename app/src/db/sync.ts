@@ -21,6 +21,7 @@ import { transaction } from './transaction';
 const CONNECTION_KEY = 'sleepjournal.sheetConnection';
 const STATE_KEY = 'sleepjournal.sheetSync.v1';
 const PUSH_BATCH = 200;
+const REQUEST_LIMIT_MS = 90_000; // Apps Script is slow, and a big push takes a while
 /** The version of google-sheets/SleepJournalSync.gs this app was built for (its SCRIPT_VERSION). */
 export const LATEST_SCRIPT_VERSION = 5;
 
@@ -38,6 +39,8 @@ export interface SyncState {
   layout: string;
   /** The sheet script's version, as it last reported (scripts from before versions existed count as 1). */
   scriptVersion: number;
+  /** Set once this device has re-read the whole sheet, to pick up rows that had been skipped. */
+  caughtUp?: boolean;
 }
 const EMPTY_STATE: SyncState = { sheetName: null, sheetUrl: null, lastPushed: '', lastPulled: '', lastSyncAt: null, lastError: null, layout: '', scriptVersion: LATEST_SCRIPT_VERSION };
 
@@ -65,18 +68,25 @@ async function saveState(s: SyncState) {
 }
 
 async function call<T>(conn: Connection, action: string, body: object = {}): Promise<T> {
-  let res: Response;
+  // A phone can freeze the app mid-request. Without a limit that request would never end, and every
+  // later sync would wait behind it.
+  const limit = new AbortController();
+  const timeout = setTimeout(() => limit.abort(), REQUEST_LIMIT_MS);
+  let text: string;
   try {
     // text/plain keeps this a "simple" request (no CORS preflight), which Apps Script requires on the web.
-    res = await fetch(conn.url, {
+    const res = await fetch(conn.url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ secret: conn.secret, action, ...body }),
+      signal: limit.signal,
     });
+    text = await res.text();
   } catch {
     throw new Error("Can't reach Google. Check your internet connection.");
+  } finally {
+    clearTimeout(timeout);
   }
-  const text = await res.text();
   let data: { ok: boolean; error?: string } & T;
   try {
     data = JSON.parse(text);
@@ -248,9 +258,12 @@ export function onPulled(fn: () => void): () => void {
 }
 
 let running: Promise<{ pushed: number; pulled: number }> | null = null;
+let again = false;
 
 /** Push then pull. Concurrent calls share one run. */
 export function syncNow(): Promise<{ pushed: number; pulled: number }> {
+  // Already running: it may be past the point of collecting edits, so go again when it ends.
+  if (running) again = true;
   if (!running) {
     setStatus('syncing');
     running = runSync().then(
@@ -258,6 +271,10 @@ export function syncNow(): Promise<{ pushed: number; pulled: number }> {
       (e) => { setStatus('failed'); throw e; },
     ).finally(() => {
       running = null;
+      if (again) {
+        again = false;
+        requestSync(0);
+      }
     });
   }
   return running;
@@ -290,7 +307,7 @@ async function runSync() {
     // device's value; every other field takes the sheet's. So two devices that each changed a
     // different field of the same night (the dream on one, the woke-up time on the other) both
     // keep their change, whichever saved last.
-    const { tabs, version, sheet, url } = await call<{ tabs: PullTab[]; version?: number; sheet?: string; url?: string }>(conn, 'pull', { since: state.lastPulled });
+    const { tabs, version, sheet, url } = await call<{ tabs: PullTab[]; version?: number; sheet?: string; url?: string }>(conn, 'pull', { since: state.caughtUp ? state.lastPulled : '' });
     state.scriptVersion = version ?? 1;
     if (sheet) state.sheetName = sheet; // the sheet may have been renamed
     state.sheetUrl = sheetAddress(url) ?? state.sheetUrl;
@@ -323,6 +340,17 @@ async function runSync() {
       for (const r of tab.rows) if (r.updated > state.lastPulled) state.lastPulled = r.updated;
     }
 
+    state.caughtUp = true;
+
+    // An edit can reach the sheet long after it was made (the app was closed at once, or offline), and
+    // other devices only ask for rows newer than what they've seen. Everything in the sheet has been
+    // read by now, so dating these nights after all of it guarantees those devices fetch them.
+    const waiting = await store.unsyncedFields();
+    for (const e of await store.listEntries({ limit: 100_000 })) {
+      const mine = waiting.has(e.nightOf) || (e.updatedAt > state.lastPushed && !pulledNights.has(e.nightOf));
+      if (mine && e.updatedAt <= state.lastPulled) await store.redate(e.nightOf, laterThan(state.lastPulled));
+    }
+
     // push: nights changed here (now including what was just merged in). If the layout changed
     // (fields shown/hidden, routine items), send every night once so hidden columns and the
     // routine summaries are brought up to date. Nights that came from the sheet go back once too,
@@ -346,7 +374,7 @@ async function runSync() {
     state.layout = layout;
 
     await saveState({ ...state, lastSyncAt: new Date().toISOString(), lastError: null });
-    if (pulled || routineChanged) pulledListeners.forEach((fn) => fn());
+    if (pulledNights.size || routineChanged) pulledListeners.forEach((fn) => fn());
     return { pushed, pulled };
   } catch (e) {
     await saveState({ ...state, lastError: (e as Error).message });
@@ -356,8 +384,16 @@ async function runSync() {
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 
+const requestListeners = new Set<() => void>();
+/** Every save asks for a sync, so this also says "there may be something new waiting". */
+export function onSyncRequested(fn: () => void): () => void {
+  requestListeners.add(fn);
+  return () => requestListeners.delete(fn);
+}
+
 /** Sync a few seconds from now if a sheet is connected (after saves, on launch/resume). Errors are kept in the state. */
 export function requestSync(delayMs = 3000) {
+  requestListeners.forEach((fn) => fn());
   if (timer) clearTimeout(timer);
   timer = setTimeout(async () => {
     timer = null;

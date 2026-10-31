@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import { sheetPayload } from '@/db/csv';
 import { store } from '@/db/store';
-import { connect, syncNow } from '@/db/sync';
+import { connect, requestSync, syncNow } from '@/db/sync';
 import type { Entry } from '@/lib/types';
 
 const { makeEnv } = createRequire(import.meta.url)('./stubs/sheet-script.cjs');
@@ -13,7 +13,11 @@ const env = makeEnv();
 env.ctx.setup();
 env.ctx.showConnectionCode();
 const secret = String(env.ctx.lastLog).split('\n')[1];
-(globalThis as any).fetch = async (_url: string, init: any) => ({ text: async () => env.ctx.doPost({ postData: { contents: init.body } }).text });
+let duringPush: (() => Promise<void>) | null = null; // something that happens while a push is on its way
+(globalThis as any).fetch = async (_url: string, init: any) => {
+  if (JSON.parse(init.body).action === 'push' && duringPush) { const f = duringPush; duringPush = null; await f(); }
+  return { text: async () => env.ctx.doPost({ postData: { contents: init.body } }).text };
+};
 
 /** The other device: it sends its copy of a night straight to the sheet. */
 const otherDevice = async (e: Entry) => {
@@ -67,4 +71,34 @@ test('a field each, saved on two devices', async () => {
   assert.equal(after.bedtimeNote, 'not sent yet', 'the unsent edit here survives');
   assert.equal(cell(N, 'Bedtime note'), 'not sent yet', 'and reaches the sheet');
   assert.equal(cell(N, 'Woke up'), '7:15 AM');
+});
+
+test('an edit that reaches the sheet late still gets past what other devices have seen', async () => {
+  // Saved here, but not sent yet (the app was closed at once).
+  const late = '2026-10-20';
+  await store.saveEntry(late, { dream: 'sent late' });
+  const editedAt = (await store.getEntry(late))!.updatedAt;
+
+  // Meanwhile another night, edited later, is already in the sheet: other devices have seen that time.
+  await tick();
+  const seen = stamp();
+  await otherDevice({ ...(await store.getEntry(N))!, nightOf: '2026-10-21', updatedAt: seen });
+
+  await syncNow();
+  const sent = cell(late, 'Updated');
+  assert.ok(sent > seen, `${sent} must be after ${seen} (edited ${editedAt}), or a device that has seen ${seen} skips it`);
+  assert.equal(cell(late, 'Dream'), 'sent late');
+});
+
+test('an edit made during a sync goes out right after it, without another trigger', async () => {
+  const night = '2026-10-22';
+  await store.saveEntry('2026-10-23', { dream: 'starts the sync' });
+  duringPush = async () => {
+    await store.saveEntry(night, { dream: 'tapped mid-sync' });
+    requestSync(0); // what saving does: it finds a sync already running
+    await new Promise((r) => setTimeout(r, 20));
+  };
+  await syncNow();
+  for (let i = 0; i < 50 && (await store.unsyncedFields()).size > 0; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(cell(night, 'Dream'), 'tapped mid-sync');
 });

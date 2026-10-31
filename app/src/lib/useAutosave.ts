@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { store } from '@/db/store';
+import { forgetEdits, rememberEdits } from './pendingEdits';
 import type { Entry, EntryPatch } from './types';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -44,6 +45,19 @@ export function useAutosave(
     });
     return queue.current;
   }, []);
+
+  // Web: kept where closing the tab can't lose it, until the save below has happened.
+  // (Only forgotten once there were edits: on opening, the last session's may still be waiting.)
+  const remembered = useRef(false);
+  useEffect(() => {
+    if (Object.keys(patch).length) {
+      rememberEdits('journal', nightOf, latest.current.opts.prepare(patch));
+      remembered.current = true;
+    } else if (remembered.current) {
+      forgetEdits('journal', nightOf);
+      remembered.current = false;
+    }
+  }, [patch, nightOf]);
 
   // Debounced save after each change.
   useEffect(() => {

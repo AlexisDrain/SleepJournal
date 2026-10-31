@@ -128,10 +128,14 @@ export default function JournalScreen() {
 
   // Coming back to the app: reload, and after a while away jump to what's due now.
   const awaySince = useRef<number | null>(null);
+  const unsaved = useRef(false);
+  unsaved.current = draft.dirty;
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
       if (s !== 'active') {
         awaySince.current ??= Date.now();
+        // Leaving the app or tab: save now and send it, instead of waiting for the usual delays.
+        if (unsaved.current) void flush().then(() => requestSync(0));
         return;
       }
       const away = awaySince.current ? Date.now() - awaySince.current : 0;
@@ -142,7 +146,7 @@ export default function JournalScreen() {
       else refresh();
     });
     return () => sub.remove();
-  }, [retarget, refresh]);
+  }, [retarget, refresh, flush]);
 
   // Show changes that just arrived from the Google Sheet.
   useEffect(() => onPulled(() => void refresh()), [refresh]);
