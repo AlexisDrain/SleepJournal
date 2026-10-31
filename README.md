@@ -2,6 +2,8 @@
 
 A free, open-source sleep diary that takes about a minute a day. Note when you went to bed, how you slept, and tick off your routines. Your journal stays on your device: no account, no ads, no tracking.
 
+You can sync your data between devices using Google Sheet.
+
 **Try it now: https://sleep-journal.expo.app**
 
 ## Get the app
