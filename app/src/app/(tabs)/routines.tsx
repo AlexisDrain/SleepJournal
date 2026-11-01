@@ -11,6 +11,7 @@ import { CalendarSheet } from '@/components/CalendarSheet';
 import { NightSwitcher, Routine } from '@/components/inputs';
 import { KIND_LABEL, RoutineItemEditor } from '@/components/RoutineItemEditor';
 import { TagManager } from '@/components/TagManager';
+import { SwapSlide } from '@/components/SwapSlide';
 import { SyncChip } from '@/components/SyncChip';
 import { joinStatus, useSyncText } from '@/components/SyncLine';
 import { SortableList } from '@/components/SortableList';
@@ -56,7 +57,7 @@ export default function RoutinesScreen() {
   const wide = useWide();
   const syncText = useSyncText(); // "Last synced …", when a Google Sheet is connected
   useHour24(); // redraw the times if the 12/24-hour setting changes
-  const [phases, swapPhases] = usePhaseOrder('routines'); // Bedtime first, or Morning first if you swapped them
+  const [phases, swapPhases, sliding] = usePhaseOrder('routines'); // Bedtime first, or Morning first if you swapped them
   const lists: RoutinePhase[] = [...phases, 'anytime'];
 
   const load = useCallback(async (night: string = shown.current) => {
@@ -181,7 +182,7 @@ export default function RoutinesScreen() {
           {lists.map((phase) => {
             const items = routine.filter((r) => r.phase === phase && !r.archived);
             return (
-              <View key={phase} style={wide ? { flex: 1 } : undefined}>
+              <SwapSlide key={phase} sliding={sliding} style={wide ? { flex: 1 } : undefined}>
                 {/* The colored left edge matches the Journal's Bedtime / Morning sections. */}
                 <View style={[styles.card, { borderLeftWidth: 3, borderLeftColor: PHASE_COLOR[phase] }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
@@ -212,7 +213,7 @@ export default function RoutinesScreen() {
                     <Muted>Nothing here yet. Tap Edit to add items.</Muted>
                   )}
                 </View>
-              </View>
+              </SwapSlide>
             );
           })}
         </View>

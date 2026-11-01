@@ -2,10 +2,12 @@
 // separately for the Journal and for Routines. It only changes the order on screen; the data and
 // the spreadsheet's columns stay as they are.
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import type { Phase } from './types';
 
 export type OrderedScreen = 'journal' | 'routines';
+
+export const SWAP_SLIDE_MS = 250;
 
 const KEY: Record<OrderedScreen, string> = {
   journal: 'sleepjournal.morningFirst.v1',
@@ -30,13 +32,22 @@ function subscribe(fn: () => void) {
   return () => void listeners.delete(fn);
 }
 
-/** The two check-ins in the order this screen shows them, and a function that swaps them. */
-export function usePhaseOrder(screen: OrderedScreen): [Phase[], () => void] {
+/** The two check-ins in the order this screen shows them, a function that swaps them, and whether
+ * they're sliding into place (see SwapSlide). */
+export function usePhaseOrder(screen: OrderedScreen): [Phase[], () => void, boolean] {
   const phases = useSyncExternalStore(subscribe, () => order[screen], () => order[screen]);
+  const [sliding, setSliding] = useState(false);
+  const stopSliding = useRef<ReturnType<typeof setTimeout>>(undefined);
   const swap = () => {
     const next = order[screen] === BEDTIME_FIRST ? MORNING_FIRST : BEDTIME_FIRST;
-    set(screen, next);
+    setSliding(true);
+    // The slide has to be switched on before the order changes, so wait for that to be drawn.
+    requestAnimationFrame(() => {
+      set(screen, next);
+      clearTimeout(stopSliding.current);
+      stopSliding.current = setTimeout(() => setSliding(false), SWAP_SLIDE_MS + 100);
+    });
     AsyncStorage.setItem(KEY[screen], next === MORNING_FIRST ? '1' : '0').catch(() => {});
   };
-  return [phases, swap];
+  return [phases, swap, sliding];
 }

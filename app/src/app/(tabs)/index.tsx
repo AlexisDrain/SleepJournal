@@ -7,6 +7,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } fr
 import { ActivityIndicator, AppState, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { CalendarSheet } from '@/components/CalendarSheet';
 import { Panel } from '@/components/Panel';
+import { SwapSlide } from '@/components/SwapSlide';
 import { SyncChip } from '@/components/SyncChip';
 import { joinStatus, useSyncText } from '@/components/SyncLine';
 import { useSheetSync } from '@/lib/useSync';
@@ -56,7 +57,7 @@ export default function JournalScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const wide = useWide();
   useHour24(); // redraw the times if the 12/24-hour setting changes
-  const [phases, swapPhases] = usePhaseOrder('journal'); // Bedtime first, or Morning first if you swapped them
+  const [phases, swapPhases, sliding] = usePhaseOrder('journal'); // Bedtime first, or Morning first if you swapped them
 
   const { entry, setEntry, tags, loading, error, reload, refresh, reloadLists } = useEntry(nightOf);
   const [managingTags, setManagingTags] = useState(false);
@@ -227,13 +228,13 @@ export default function JournalScreen() {
                 {/* Phones: stacked, the check-in that isn't due folded. Wide screens: side by side, both open. */}
                 <View style={wide ? { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' } : undefined}>
                   {phases.map((phase) => (
-                    <View key={phase} style={wide ? { flex: 1 } : undefined}>
+                    <SwapSlide key={phase} sliding={sliding} style={wide ? { flex: 1 } : undefined}>
                       <Section phase={phase} expanded={wide || expanded[phase]} collapsible={!wide} filled={filledNow(phase)}
                         onToggle={() => setExpanded((x) => ({ ...x, [phase]: !x[phase] }))}
                         summary={summary(phase, entry, combine)} hint={untilHint(phase, nightOf)}>
                         <AllSteps steps={phase === 'bedtime' ? bedtimeSteps(fields) : morningSteps(fields)} />
                       </Section>
-                    </View>
+                    </SwapSlide>
                   ))}
                 </View>
                 <NapsCard nightOf={nightOf} />
