@@ -23,7 +23,7 @@ import { colors } from '@/lib/theme';
 
 const PAGES = ['index', 'routines', 'stats', 'settings'];
 const LAST = PAGES.length - 1;
-const SETTLE_MS = 220;
+export const SETTLE_MS = 220;
 const TURN_SHARE = 0.3; // how much of the screen a slow drag has to cover
 const FLICK_SPEED = 600; // or a quick flick, in pixels a second
 

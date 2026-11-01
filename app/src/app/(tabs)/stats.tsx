@@ -2,9 +2,9 @@
 // used tags, and night by night the times, tags and notes. Exportable on its own.
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { Panel } from '@/components/Panel';
-import { SideScroll } from '@/components/PhoneTabs';
+import { SETTLE_MS, SideScroll } from '@/components/PhoneTabs';
 import { Button, Card, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { exportStats } from '@/db/csv';
 import { store } from '@/db/store';
@@ -76,6 +76,15 @@ export default function StatsScreen() {
   useFocusEffect(useCallback(() => void load(), [load]));
   useEffect(() => onPulled(() => void load()), [load]);
 
+  // The phone app keeps this page ready beside the others: the chart's bars and the table's rows are
+  // left blank, at their full size, until you first arrive and the page has finished sliding in.
+  const [drawn, setDrawn] = useState(Platform.OS === 'web' || wide);
+  useFocusEffect(useCallback(() => {
+    if (drawn) return;
+    const t = setTimeout(() => setDrawn(true), SETTLE_MS + 50);
+    return () => clearTimeout(t);
+  }, [drawn]));
+
   const exportAs = async (format: 'csv' | 'xlsx') => {
     setExporting(true);
     try {
@@ -124,7 +133,7 @@ export default function StatsScreen() {
         <Tile label="Nights" value={String(s.nights)} note={year ? `in ${year}` : nights ? `of the last ${nights}` : 'recorded'} color={colors.muted} />
       </View>
 
-      <HoursChart entries={entries} average={s.avgHours} />
+      <HoursChart entries={entries} average={s.avgHours} blank={!drawn} />
 
       {s.tags.length > 0 && (
         <Card title="Tags">
@@ -147,7 +156,7 @@ export default function StatsScreen() {
         ))}
       </View>
       <Muted>Untick a column to hide it here and leave it out of the export. The export has the nights shown.</Muted>
-      {shown.length > 0 && (wide ? <TableHeader cols={cols} /> : <SwipeTable entries={shown} cols={cols} onRead={setReading} />)}
+      {shown.length > 0 && (wide ? <TableHeader cols={cols} /> : <SwipeTable entries={shown} cols={cols} onRead={setReading} blank={!drawn} />)}
     </View>
   );
 
@@ -192,7 +201,7 @@ function Tile({ label, value, note, color }: { label: string; value: string; not
 }
 
 /** One bar per night (oldest on the left), with a line at the average. */
-function HoursChart({ entries, average }: { entries: Entry[]; average: number | null }) {
+function HoursChart({ entries, average, blank }: { entries: Entry[]; average: number | null; blank: boolean }) {
   const nights = entries.slice(0, CHART_NIGHTS).reverse();
   const hours = nights.map((e) => e.hoursAsleep);
   const known = hours.filter((h): h is number => h !== null && h > 0);
@@ -202,7 +211,7 @@ function HoursChart({ entries, average }: { entries: Entry[]; average: number | 
   return (
     <Card title={`Hours asleep${entries.length > CHART_NIGHTS ? ` · last ${CHART_NIGHTS} nights` : ''}`}>
       <View style={{ height: CHART_HEIGHT, flexDirection: 'row', alignItems: 'flex-end', gap: 2 }}>
-        {hours.map((h, i) => (
+        {!blank && hours.map((h, i) => (
           <View key={nights[i].nightOf} style={{
             flex: 1, height: h === null ? 2 : Math.max(2, y(h)), borderRadius: 2,
             backgroundColor: h === null ? colors.cardBorder : h < 0 ? colors.danger : colors.night,
@@ -260,7 +269,8 @@ const COLUMNS: Col[] = [
     cell: (e) => ({ text: [e.bedtimeNote, e.morningNote].filter(Boolean).join(' · ') }) },
 ];
 
-const cellText = { color: colors.text, fontSize: 14 } as const;
+const cellText = { color: colors.text, fontSize: 14, lineHeight: 20 } as const;
+const ROW_HEIGHT = cellText.lineHeight + space.sm * 2 + 1; // + 1: the border below it
 const shortNight = (nightOf: string) => {
   const [y, m, d] = nightOf.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
@@ -301,7 +311,7 @@ function NightRow({ e, cols, odd, last, onRead, fixed = false }: {
       borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.cardBorder,
       ...(last ? { borderBottomLeftRadius: radius, borderBottomRightRadius: radius } : null),
     }}>
-      <Text style={[cellText, sized(NIGHT_COL, fixed), { fontWeight: '600' }]}>{shortNight(e.nightOf)}</Text>
+      <Text numberOfLines={1} style={[cellText, sized(NIGHT_COL, fixed), { fontWeight: '600' }]}>{shortNight(e.nightOf)}</Text>
       {cols.map((c) => {
         const v = c.cell(e);
         if (LONG_TEXT.has(c.id) && v.text) {
@@ -326,7 +336,7 @@ function NightRow({ e, cols, odd, last, onRead, fixed = false }: {
 }
 
 /** Phones: the table at readable column widths, scrolling sideways, with arrows to the hidden columns. */
-function SwipeTable({ entries, cols, onRead }: { entries: Entry[]; cols: Col[]; onRead: (r: Reading) => void }) {
+function SwipeTable({ entries, cols, onRead, blank }: { entries: Entry[]; cols: Col[]; onRead: (r: Reading) => void; blank: boolean }) {
   // A phone draws every row of this table at once, so it shows them a batch at a time: a year or
   // more of nights would otherwise make the tab slow to open.
   const [limit, setLimit] = useState(ROW_BATCH);
@@ -348,7 +358,8 @@ function SwipeTable({ entries, cols, onRead }: { entries: Entry[]; cols: Col[]; 
           onScroll={(e) => setX(e.nativeEvent.contentOffset.x)}>
           <View style={{ width: contentW }}>
             <HeaderRow cols={cols} fixed />
-            {rows.map((e, i) => <NightRow key={e.nightOf} e={e} cols={cols} fixed odd={i % 2 === 1} last={i === rows.length - 1} onRead={onRead} />)}
+            {blank ? <View style={{ height: rows.length * ROW_HEIGHT }} />
+              : rows.map((e, i) => <NightRow key={e.nightOf} e={e} cols={cols} fixed odd={i % 2 === 1} last={i === rows.length - 1} onRead={onRead} />)}
           </View>
         </ScrollView>
       </SideScroll>
