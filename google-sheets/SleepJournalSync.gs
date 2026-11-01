@@ -30,10 +30,11 @@
  * Bump this whenever the script changes in a way the app should know about. The app compares it
  * with the version it was built for and tells the user when their sheet's script is out of date.
  */
-const SCRIPT_VERSION = 5;
+const SCRIPT_VERSION = 6;
 
 const NIGHT = 'Night of';
 const UPDATED = 'Updated';
+const NEWEST = 'NEWEST_'; // a saved setting per year tab: the time of its newest change
 // The routine checklist, one row per item. The app owns it; hand edits here are picked up too.
 const ROUTINE_TAB = 'Routine items';
 const ROUTINE_COLS = ['Id', 'Check-in', 'Item', 'Records', 'Order', 'Hidden', UPDATED];
@@ -111,6 +112,7 @@ function doPost(e) {
       const pulled = pull_(ss, req.since || '');
       pulled.sheet = ss.getName();
       pulled.url = ss.getUrl();
+      pulled.cells = cells_(ss);
       return json_(withVersion_(pulled));
     }
     if (req.action === 'routine-get') return json_(withVersion_({ ok: true, items: routineGet_(ss) }));
@@ -166,6 +168,7 @@ function mergeInto_(sh, columns, rows) {
 
   let written = 0;
   let kept = 0;
+  let newest = '';
   rows.forEach(function (r) {
     let row;
     if (index[r.nightOf] !== undefined) {
@@ -188,6 +191,7 @@ function mergeInto_(sh, columns, rows) {
       row[col[c.header]] = cellValue_(c, r.values[c.header]);
     });
     row[col[UPDATED]] = r.updated;
+    if (r.updated > newest) newest = r.updated;
     written++;
   });
 
@@ -201,6 +205,7 @@ function mergeInto_(sh, columns, rows) {
     ensureRows_(sh, data.length + 1);
     sh.getRange(2, 1, data.length, lastCol).setValues(data);
   }
+  noteNewest_(sh.getName(), newest);
   return { written: written, kept: kept };
 }
 
@@ -209,11 +214,16 @@ function mergeInto_(sh, columns, rows) {
 /**
  * Every row changed after `since`, as the text you see in the sheet:
  * { tabs: [{ header: [...], rows: [{ nightOf, updated, cells: [...] }] }] }
+ * A year tab with nothing newer than `since` is skipped without being read.
  */
 function pull_(ss, since) {
   const tabs = [];
+  const props = PropertiesService.getScriptProperties();
   ss.getSheets().forEach(function (sh) {
-    if (!/^\d{4}$/.test(sh.getName()) || sh.getLastRow() < 2) return;
+    if (!/^\d{4}$/.test(sh.getName())) return;
+    const remembered = props.getProperty(NEWEST + sh.getName());
+    if (since && remembered && remembered <= since) return;
+    if (sh.getLastRow() < 2) return;
     const lastCol = sh.getLastColumn();
     const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
     const u = headers.indexOf(UPDATED);
@@ -222,15 +232,33 @@ function pull_(ss, since) {
     const shown = sh.getRange(2, 1, sh.getLastRow() - 1, lastCol).getDisplayValues();
     const raw = sh.getRange(2, 1, sh.getLastRow() - 1, lastCol).getValues();
     const rows = [];
+    let newest = '';
     shown.forEach(function (row, i) {
       const updated = toIsoTime_(raw[i][u]);
       const night = toIsoNight_(raw[i][n]);
+      if (updated > newest) newest = updated;
       if (!night || !updated || updated <= since) return;
       rows.push({ nightOf: night, updated: updated, cells: row });
     });
     if (rows.length) tabs.push({ header: headers, rows: rows });
+    if (newest && newest !== remembered) props.setProperty(NEWEST + sh.getName(), newest);
   });
   return { ok: true, tabs: tabs };
+}
+
+/**
+ * A later change to a year tab than the one remembered. A tab with nothing remembered is left to
+ * the next pull, which reads the whole tab: this one change may not be the tab's newest.
+ */
+function noteNewest_(year, updated) {
+  const props = PropertiesService.getScriptProperties();
+  const remembered = props.getProperty(NEWEST + year);
+  if (remembered && updated > remembered) props.setProperty(NEWEST + year, updated);
+}
+
+/** Every cell in the spreadsheet, empty ones too: that's what Google's 10 million limit counts. */
+function cells_(ss) {
+  return ss.getSheets().reduce(function (sum, sh) { return sum + sh.getMaxRows() * sh.getMaxColumns(); }, 0);
 }
 
 // ---------- the routine list ----------
@@ -399,6 +427,7 @@ function onEdit(e) {
   const stamps = [];
   for (let i = 0; i < n; i++) stamps.push([nowIso_()]);
   sh.getRange(e.range.getRow(), u + 1, n, 1).setValues(stamps);
+  noteNewest_(name, stamps[0][0]);
 }
 
 // ---------- sheet layout ----------

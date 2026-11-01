@@ -5,9 +5,9 @@ import { ExportSheet } from '@/components/ExportSheet';
 import { GoogleSheetCard } from '@/components/GoogleSheetCard';
 import { TimePicker } from '@/components/TimeField';
 import { Button, Card, Chip, ErrorBox, Muted, Row, styles } from '@/components/ui';
-import { pickAndImport } from '@/db/csv';
+import { estimateSheetCells, pickAndImport, SHEET_CELL_WARNING } from '@/db/csv';
 import buildInfo from '@/lib/buildInfo.json';
-import { requestSync, resendAllNights } from '@/db/sync';
+import { getConnection, getSyncState, requestSync, resendAllNights } from '@/db/sync';
 import { HOURS_METHODS, setCombine, setHoursMethod, useCombine, useHoursMethod } from '@/lib/advanced';
 import { usePullToSync } from '@/lib/usePullToSync';
 import { formatSheetDate, setDateStyle, setMondayFirst, useDateStyle, useMondayFirst, type DateStyle } from '@/lib/localePrefs';
@@ -45,6 +45,7 @@ export default function SettingsScreen() {
   const [planned, setPlanned] = useState<{ count: number; next: Date | null } | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [sheetCells, setSheetCells] = useState(0); // about how full the Google Sheet is, if connected
   const hour24 = useHour24();
   const display = useDisplayMode();
   const combine = useCombine();
@@ -56,6 +57,7 @@ export default function SettingsScreen() {
     try {
       setReminders(await getReminders());
       setPlanned(await plannedReminders().catch(() => null));
+      setSheetCells((await getConnection()) ? (await getSyncState()).sheetCells ?? await estimateSheetCells() : 0);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -132,6 +134,12 @@ export default function SettingsScreen() {
       <GoogleSheetCard />
 
       <Card title="Your data">
+        {sheetCells >= SHEET_CELL_WARNING && (
+          <Text style={{ color: colors.danger }}>
+            Your Google Sheet is nearly full: about {(sheetCells / 1_000_000).toFixed(1)} million of the 10 million cells Google allows.
+            To make room, back it up and delete its oldest year tabs.
+          </Text>
+        )}
         <Muted>Everything is stored only on this device.</Muted>
         <Muted>
           Export as a color-coded spreadsheet (.xlsx) for Google Sheets / Excel, or as CSV for backups

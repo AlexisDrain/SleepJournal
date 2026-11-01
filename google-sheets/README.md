@@ -132,6 +132,9 @@ enter the same two things there.
   Hand-edit the per-item columns, not the summary: the summary is recalculated by the app.
 - **Three routine lists**: Bedtime, Morning and Anytime. The Anytime columns (*Anytime routine*,
   *Anytime: …*) appear at the end of the sheet once that list has items. (Needs script version 5.)
+- **Older years aren't read on every sync.** The script remembers each year tab's newest change and
+  skips tabs with nothing new. It also tells the app the spreadsheet's exact cell count, for the
+  warning in **Settings → Your data** near Google's 10 million cell limit. (Needs script version 6.)
 - **Your routine list syncs too.** The script keeps it in a **Routine items** tab (name, check-in,
   order, hidden), so the phone and the web app show the same checklist in the same order. Change
   items in the app (**Routines → Edit**); leave the *Id* column alone.

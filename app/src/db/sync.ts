@@ -23,7 +23,7 @@ const STATE_KEY = 'sleepjournal.sheetSync.v1';
 const PUSH_BATCH = 200;
 const REQUEST_LIMIT_MS = 90_000; // Apps Script is slow, and a big push takes a while
 /** The version of google-sheets/SleepJournalSync.gs this app was built for (its SCRIPT_VERSION). */
-export const LATEST_SCRIPT_VERSION = 5;
+export const LATEST_SCRIPT_VERSION = 6;
 
 export interface Connection { url: string; secret: string }
 
@@ -43,6 +43,8 @@ export interface SyncState {
   caughtUp?: boolean;
   /** The time of each night last sent with edits: a row at that time is this device's own, coming back. */
   sentRows?: Record<string, string>;
+  /** How many cells the spreadsheet has, from a version 6+ script. */
+  sheetCells?: number;
 }
 const EMPTY_STATE: SyncState = { sheetName: null, sheetUrl: null, lastPushed: '', lastPulled: '', lastSyncAt: null, lastError: null, layout: '', scriptVersion: LATEST_SCRIPT_VERSION };
 
@@ -312,8 +314,9 @@ async function runSync() {
     // device's value; every other field takes the sheet's. So two devices that each changed a
     // different field of the same night (the dream on one, the woke-up time on the other) both
     // keep their change, whichever saved last.
-    const { tabs, version, sheet, url } = await call<{ tabs: PullTab[]; version?: number; sheet?: string; url?: string }>(conn, 'pull', { since: state.caughtUp ? state.lastPulled : '' });
+    const { tabs, version, sheet, url, cells } = await call<{ tabs: PullTab[]; version?: number; sheet?: string; url?: string; cells?: number }>(conn, 'pull', { since: state.caughtUp ? state.lastPulled : '' });
     state.scriptVersion = version ?? 1;
+    state.sheetCells = cells;
     if (sheet) state.sheetName = sheet; // the sheet may have been renamed
     state.sheetUrl = sheetAddress(url) ?? state.sheetUrl;
     const local = new Map((await store.listEntries({ limit: 100_000 })).map((e) => [e.nightOf, e]));

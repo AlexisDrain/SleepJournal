@@ -88,7 +88,9 @@ export function GoogleSheetCard() {
                 ? " changes to your routine list (new, renamed or reordered items) won't reach your other devices"
                 : state.scriptVersion < 4
                   ? ' the "Open sheet" button and the Anytime routine list need the newer script'
-                  : " items on the Anytime routine list won't reach your other devices"}
+                  : state.scriptVersion < 5
+                    ? " items on the Anytime routine list won't reach your other devices"
+                    : ' syncing stays slower and the warning about a full sheet is only an estimate'}
               {' '}until it's updated. To update it, paste the current script into the sheet and deploy a new version (see "Updating
               the script" in the setup guide).
             </Text>

@@ -227,6 +227,19 @@ export async function sheetPayload(entries: Entry[], options: ExportOptions = {}
   };
 }
 
+export const SHEET_CELL_WARNING = 9_000_000; // Google Sheets stops at 10 million cells
+
+/** Google counts empty cells too, and a new tab starts with at least 1000 rows and 26 columns. */
+export const sheetCells = (columns: number, years: number) => years * 1000 * Math.max(26, columns);
+
+/** For a sheet script older than version 6: about how many cells the sheet has. High rather than low: older tabs can have fewer columns. */
+export async function estimateSheetCells(): Promise<number> {
+  const db = await getDb();
+  const deleted = (await store.routine.listAll()).length - (await store.routine.list()).length; // their columns stay
+  const years = await db.getFirstAsync<{ n: number }>(`SELECT count(DISTINCT substr(night_of, 1, 4)) AS n FROM entries`);
+  return sheetCells((await allColumns()).length + deleted + 1, years?.n ?? 0); // + 1: "Updated"
+}
+
 /** Column names and colors, for the "choose fields" list (`detail` marks per-routine-item columns). */
 export async function exportableColumns(): Promise<(SheetColumn & { detail: boolean })[]> {
   return (await allColumns()).map(({ header, group, width, detail }) => ({ header, group, width, detail: !!detail }));
