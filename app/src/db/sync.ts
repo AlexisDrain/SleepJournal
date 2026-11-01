@@ -15,7 +15,7 @@ import { secureStorage } from '@/lib/secureStorage';
 import { currentNight } from '@/lib/time';
 import type { EntryPatch, RoutineItem, RoutinePhase } from '@/lib/types';
 import { isEmptyRow, routineColumnsFor, rowToPatch, sheetPayload } from './csv';
-import { getDb, store, writeEntry } from './store';
+import { DELETED_ORDER, getDb, store, writeEntry } from './store';
 import { transaction } from './transaction';
 
 const CONNECTION_KEY = 'sleepjournal.sheetConnection';
@@ -41,6 +41,8 @@ export interface SyncState {
   scriptVersion: number;
   /** Set once this device has re-read the whole sheet, to pick up rows that had been skipped. */
   caughtUp?: boolean;
+  /** The time of each night last sent with edits: a row at that time is this device's own, coming back. */
+  sentRows?: Record<string, string>;
 }
 const EMPTY_STATE: SyncState = { sheetName: null, sheetUrl: null, lastPushed: '', lastPulled: '', lastSyncAt: null, lastError: null, layout: '', scriptVersion: LATEST_SCRIPT_VERSION };
 
@@ -210,7 +212,8 @@ async function syncRoutine(conn: Connection): Promise<boolean> {
     if ((e as Error).message === 'Unknown action') return false; // the sheet's script is older than version 3
     throw e;
   }
-  const local = await store.routine.list();
+  await store.routine.renameDeleted();
+  const local = await store.routine.listAll();
   const remoteIds = new Set(remote.map((r) => r.id));
   const paired = new Set<number>();
   let changed = false;
@@ -240,8 +243,10 @@ async function syncRoutine(conn: Connection): Promise<boolean> {
       );
       changed = true;
     }
+    // Deleted on another device: its ticks go too.
+    await tx.runAsync(`DELETE FROM entry_routine WHERE item_id IN (SELECT id FROM routine_items WHERE sort_order = ?)`, DELETED_ORDER);
   });
-  const mineNow = (await store.routine.list()).map(toSheetItem);
+  const mineNow = (await store.routine.listAll()).map(toSheetItem);
   if (listKey(mineNow) !== listKey(remote)) await call(conn, 'routine-set', { items: mineNow });
   return changed;
 }
@@ -330,7 +335,14 @@ async function runSync() {
             // Changed here before this app kept track of which fields: the newer copy wins whole.
             if (!theirsNewer) continue;
           }
-          const patch = withoutFields(rowToPatch(tab.header, r.cells, r.nightOf, routineCols), keep);
+          const row = rowToPatch(tab.header, r.cells, r.nightOf, routineCols);
+          // A checkmark from another device beats an untick here, whichever came first.
+          if (state.sentRows?.[r.nightOf] !== r.updated) {
+            for (const [id, v] of Object.entries(row.routine ?? {})) {
+              if (v === true && !mine?.routine[id]) keep.delete(`routine:${id}`);
+            }
+          }
+          const patch = withoutFields(row, keep);
           // Keep this night's own time when it's the newer copy, or when edits made here still have
           // to go out (so they win in the sheet); otherwise it now dates from the sheet's change.
           const at = mine && (!theirsNewer || keep.size) ? (theirsNewer ? laterThan(r.updated) : mine.updatedAt) : r.updated;
@@ -366,12 +378,18 @@ async function runSync() {
       .filter((e) => full || e.updatedAt > state.lastPushed || pulledNights.has(e.nightOf) || sentWith.has(e.nightOf))
       .sort((x, y) => x.nightOf.localeCompare(y.nightOf));
     let pushed = 0;
+    const sentRows: Record<string, string> = {};
     for (let i = 0; i < changed.length; i += PUSH_BATCH) {
       const batch = changed.slice(i, i + PUSH_BATCH);
       const res = await call<{ written: number }>(conn, 'push', await sheetPayload(batch, options));
       pushed += res.written;
-      for (const e of batch) if (sentWith.has(e.nightOf)) await store.markSynced(e, sentWith.get(e.nightOf)!);
+      for (const e of batch) {
+        if (!sentWith.has(e.nightOf)) continue;
+        sentRows[e.nightOf] = e.updatedAt;
+        await store.markSynced(e, sentWith.get(e.nightOf)!);
+      }
     }
+    if (changed.length) state.sentRows = sentRows;
     if (changed.length) state.lastPushed = changed.reduce((max, e) => (e.updatedAt > max ? e.updatedAt : max), state.lastPushed);
     state.layout = layout;
 

@@ -60,6 +60,7 @@ export default function SettingsScreen() {
       setError((e as Error).message);
     }
   }, []);
+  useEffect(() => void load(), [load]); // a phone can swipe to this page before it's focused
   useFocusEffect(useCallback(() => void load(), [load]));
 
   const importCsv = async () => {

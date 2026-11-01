@@ -308,9 +308,36 @@ const endOf = async (phase: RoutinePhase) =>
 type RoutineEdit = Partial<Pick<RoutineItem, 'label' | 'phase' | 'kind' | 'archived'>>;
 
 /** Every change stamps the item, so the newest edit wins when devices sync through the sheet. */
+/**
+ * A deleted item stays in the table with this order, and in the sheet's list, so every device
+ * learns it's gone: without a trace, the next sync would bring it back from the sheet. Its name is
+ * replaced too, and the sheet renames the item's column to match (keeping the column's cells).
+ */
+export const DELETED_ORDER = -1;
+const DELETED_NAME = /^Deleted item #(\d+)$/;
+const liveItems = async () => (await routineTable.list()).filter((i) => i.sortOrder !== DELETED_ORDER);
+
+/** The next free "Deleted item #X". */
+const deletedName = async () => {
+  const taken = (await routineTable.list()).map((i) => Number(DELETED_NAME.exec(i.label)?.[1] ?? 0));
+  return `Deleted item #${Math.max(0, ...taken) + 1}`;
+};
+
 const routine = {
-  list: routineTable.list,
-  remove: routineTable.remove,
+  list: liveItems,
+  /** With the deleted ones, for the sync. */
+  listAll: routineTable.list,
+  /** For good, with its ticks on every night. */
+  remove: async (id: number) => {
+    await (await getDb()).runAsync(`DELETE FROM entry_routine WHERE item_id = ?`, id);
+    await routineTable.update(id, { label: await deletedName(), sortOrder: DELETED_ORDER, archived: true, updatedAt: stamp() });
+  },
+  /** Items deleted before names were replaced: replace them now. */
+  renameDeleted: async () => {
+    for (const i of await routineTable.list()) {
+      if (i.sortOrder === DELETED_ORDER && !DELETED_NAME.test(i.label)) await routineTable.update(i.id, { label: await deletedName(), updatedAt: stamp() });
+    }
+  },
 
   /** A new item goes to the end of its check-in's list. */
   create: async (body: Pick<RoutineItem, 'label' | 'phase' | 'kind'>) =>
@@ -334,7 +361,7 @@ const routine = {
   /** Put a list's items in the given order (ids of the items showing); hidden ones keep their place after them. */
   setOrder: async (phase: RoutinePhase, ids: number[]) => {
     const db = await getDb();
-    const all = (await routineTable.list()).filter((i) => i.phase === phase);
+    const all = (await liveItems()).filter((i) => i.phase === phase);
     const shown = ids.map((id) => all.find((i) => i.id === id)).filter((i): i is RoutineItem => !!i);
     const list = [...shown, ...all.filter((i) => !ids.includes(i.id))];
     const now = stamp();
@@ -350,7 +377,7 @@ const routine = {
   /** Move an item one place up (-1) or down (1) among the items that are showing. */
   move: async (id: number, direction: -1 | 1) => {
     const db = await getDb();
-    const all = await routineTable.list();
+    const all = await liveItems();
     const me = all.find((i) => i.id === id);
     if (!me) return;
     const list = all.filter((i) => i.phase === me.phase);

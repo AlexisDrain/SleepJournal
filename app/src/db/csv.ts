@@ -9,7 +9,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { addDays, toDateString, toLocalIso, weekdayOf } from '@/lib/time';
 import type { Entry, EntryPatch, Phase, RoutineItem, RoutinePhase, RoutineValue } from '@/lib/types';
 import { readPickedBytes, readPickedText, shareFile } from './files';
-import { getDb, hoursBy, store, writeEntry } from './store';
+import { DELETED_ORDER, getDb, hoursBy, store, writeEntry } from './store';
 import { buildXlsx, readXlsx, type ColumnGroup, type SheetColumn, type SheetValue } from './xlsx';
 import { transaction } from './transaction';
 import { advancedReady } from '@/lib/advanced';
@@ -133,6 +133,15 @@ function parseDate(raw: string): string | null {
 export const REQUIRED_COLUMN = 'Night of';
 
 /**
+ * Two items of a list can have one name (one hidden, usually), but a sheet has one column per name.
+ * The column belongs to the one you can see, both ways, or a tick on it would be lost in the sheet.
+ */
+const columnOwner = (items: RoutineItem[], phase: RoutinePhase, label: string) => {
+  const same = items.filter((i) => i.phase === phase && i.label === label);
+  return same.find((i) => !i.archived) ?? same.find((i) => i.sortOrder !== DELETED_ORDER) ?? same[0];
+};
+
+/**
  * Every possible column, in export order. After each check-in's own fields come its routine:
  * first one compact summary column, then one detail column per item (hidden items too).
  */
@@ -165,7 +174,7 @@ async function allColumns(): Promise<Column[]> {
     : typeof v === 'boolean' ? String(v) : v;
   const routineCols = (phase: RoutinePhase) =>
     items
-      .filter((i) => i.phase === phase)
+      .filter((i) => i.phase === phase && i === columnOwner(items, phase, i.label))
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((i) => ({
         ...col(PHASE_PREFIX[phase] + i.label, groupOf(phase), 14, (e) => routineCell(i, e.routine[i.id])),
@@ -338,14 +347,15 @@ export interface RoutineColumn { index: number; item: RoutineItem }
 
 /** Routine columns ("Bedtime: Brush teeth") → routine items, created if missing. Blank columns are ignored. */
 export async function routineColumnsFor(header: string[], body: string[][]): Promise<RoutineColumn[]> {
-  const items = await store.routine.list();
+  const items = await store.routine.listAll();
   const cols: RoutineColumn[] = [];
   for (const [index, name] of header.entries()) {
     const phase = (Object.keys(PHASE_PREFIX) as RoutinePhase[]).find((p) => name.startsWith(PHASE_PREFIX[p]));
     if (!phase) continue;
     const label = name.slice(PHASE_PREFIX[phase].length);
     const values = body.map((r) => r[index] ?? '');
-    const existing = items.find((i) => i.phase === phase && i.label === label);
+    const existing = columnOwner(items, phase, label);
+    if (existing?.sortOrder === DELETED_ORDER) continue; // its old column stays in the sheet, unread
     if (existing) cols.push({ index, item: existing });
     else if (values.some((v) => v.trim() !== '')) {
       cols.push({ index, item: await store.routine.create({ label, phase, kind: guessKind(values) }) });

@@ -107,6 +107,7 @@ export default function RoutinesScreen() {
     timer.current = setTimeout(flush, SAVE_DELAY_MS);
   };
 
+  useEffect(() => void load(), [load]); // a phone can swipe to this page before it's focused
   useFocusEffect(useCallback(() => {
     load(dueSlot().nightOf);
     return () => void flush(); // leaving the tab: write anything still waiting
@@ -168,7 +169,7 @@ export default function RoutinesScreen() {
         {/* One short line and then the buttons, spaced exactly like the Journal's "Changes save
             automatically" line, so the buttons sit at the same height on both tabs. */}
         <Text style={{ color: colors.muted, textAlign: 'center', marginTop: editMode ? 0 : -space.sm, marginBottom: space.md, fontSize: 13 }}>
-          {editMode ? 'Tap an item to rename or hide it. Drag ≡ to change the order.' : joinStatus('Ticks save automatically', syncText)}
+          {editMode ? 'Edit or hide each item. Drag ≡ to change the order.' : joinStatus('Ticks save automatically', syncText)}
         </Text>
         <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: space.md, marginBottom: space.md }}>
           {/* Swaps Bedtime and Morning on this screen only. The data doesn't change. */}
@@ -195,13 +196,18 @@ export default function RoutinesScreen() {
                   </View>
                   {editMode ? (
                     <>
-                      {/* Drag the ≡ handle to reorder; tap the item to rename, change or hide it. */}
+                      {/* Drag the ≡ handle to reorder. Hide keeps the item's past ticks, and it can come back from Hidden items. */}
                       <SortableList items={items} keyOf={(r) => String(r.id)}
                         onReorder={(next) => act(() => store.routine.setOrder(phase, next.map((r) => r.id)))()}
                         renderItem={(r) => (
-                          <Pressable onPress={() => setEditing(r)} accessibilityRole="button" accessibilityLabel={`Edit ${r.label}`}>
-                            <Row label={r.label}>{r.kind !== 'check' ? <Muted>+ {KIND_LABEL[r.kind]}</Muted> : null}</Row>
-                          </Pressable>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                            <Pressable onPress={() => setEditing(r)} style={{ flex: 1, minWidth: 0 }}>
+                              <Text style={{ color: colors.text, fontSize: 16 }}>{r.label}</Text>
+                              {r.kind !== 'check' && <Muted>+ {KIND_LABEL[r.kind]}</Muted>}
+                            </Pressable>
+                            <Button title="Edit" small color={colors.chip} textColor={colors.text} onPress={() => setEditing(r)} />
+                            <Button title="Hide" small color={colors.chip} textColor={colors.danger} onPress={hide(r)} />
+                          </View>
                         )} />
                       <NewRoutineItem phase={phase} onCreate={(item) => act(() => store.routine.create(item))()} />
                     </>
@@ -221,7 +227,8 @@ export default function RoutinesScreen() {
         {editMode && (
           <>
             <HiddenItems items={routine.filter((r) => r.archived)}
-              onRestore={(r) => act(() => store.routine.update(r.id, { archived: false }))()} />
+              onRestore={(r) => act(() => store.routine.update(r.id, { archived: false }))()}
+              onDelete={(r) => act(() => store.routine.remove(r.id))()} />
             <Card title="Tags">
               <TagManager />
             </Card>
@@ -268,8 +275,9 @@ function NewRoutineItem({ phase, onCreate }: { phase: RoutinePhase; onCreate: (i
   );
 }
 
-function HiddenItems({ items, onRestore }: { items: RoutineItem[]; onRestore: (r: RoutineItem) => void }) {
+function HiddenItems({ items, onRestore, onDelete }: { items: RoutineItem[]; onRestore: (r: RoutineItem) => void; onDelete: (r: RoutineItem) => void }) {
   const [open, setOpen] = useState(false);
+  const [asked, setAsked] = useState<number | null>(null); // Delete can't be undone: it takes a second tap
   if (!items.length) return null;
   return (
     <Card>
@@ -277,11 +285,12 @@ function HiddenItems({ items, onRestore }: { items: RoutineItem[]; onRestore: (r
         <Muted>{open ? '▴' : '▾'} {items.length} hidden routine item{items.length > 1 ? 's' : ''} (history kept)</Muted>
       </Pressable>
       {open && items.map((r) => (
-        <Row key={r.id} label={`${r.label} · ${PHASE_NAME[r.phase].toLowerCase()}`}>
-          <Pressable hitSlop={8} onPress={() => onRestore(r)}>
-            <Text style={{ color: PHASE_COLOR[r.phase] }}>Restore</Text>
-          </Pressable>
-        </Row>
+        <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.sm }}>
+          <Text style={{ color: colors.text, fontSize: 16, flex: 1, minWidth: 0 }}>{r.label} · {PHASE_NAME[r.phase].toLowerCase()}</Text>
+          <Button title="Restore" small color={colors.chip} textColor={colors.text} onPress={() => onRestore(r)} />
+          <Button title={asked === r.id ? 'Delete with its ticks?' : 'Delete'} small color={colors.chip} textColor={colors.danger}
+            onPress={() => (asked === r.id ? onDelete(r) : setAsked(r.id))} />
+        </View>
       ))}
     </Card>
   );

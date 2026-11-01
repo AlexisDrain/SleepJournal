@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 import { Panel } from '@/components/Panel';
+import { SideScroll } from '@/components/PhoneTabs';
 import { Button, Card, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { exportStats } from '@/db/csv';
 import { store } from '@/db/store';
@@ -71,6 +72,7 @@ export default function StatsScreen() {
       setLoading(false);
     }
   }, [from, to, hoursMethod]);
+  useEffect(() => void load(), [load]); // a phone can swipe to this page before it's focused
   useFocusEffect(useCallback(() => void load(), [load]));
   useEffect(() => onPulled(() => void load()), [load]);
 
@@ -341,13 +343,15 @@ function SwipeTable({ entries, cols, onRead }: { entries: Entry[]; cols: Col[]; 
   };
   return (
     <View style={{ marginTop: space.sm }} onLayout={(e) => setViewW(e.nativeEvent.layout.width)}>
-      <ScrollView ref={scroller} horizontal persistentScrollbar scrollEventThrottle={32}
-        onScroll={(e) => setX(e.nativeEvent.contentOffset.x)}>
-        <View style={{ width: contentW }}>
-          <HeaderRow cols={cols} fixed />
-          {rows.map((e, i) => <NightRow key={e.nightOf} e={e} cols={cols} fixed odd={i % 2 === 1} last={i === rows.length - 1} onRead={onRead} />)}
-        </View>
-      </ScrollView>
+      <SideScroll>
+        <ScrollView ref={scroller} horizontal persistentScrollbar scrollEventThrottle={32}
+          onScroll={(e) => setX(e.nativeEvent.contentOffset.x)}>
+          <View style={{ width: contentW }}>
+            <HeaderRow cols={cols} fixed />
+            {rows.map((e, i) => <NightRow key={e.nightOf} e={e} cols={cols} fixed odd={i % 2 === 1} last={i === rows.length - 1} onRead={onRead} />)}
+          </View>
+        </ScrollView>
+      </SideScroll>
       {more.left && <Arrow side="left" onPress={() => jump(-1)} />}
       {more.right && <Arrow side="right" onPress={() => jump(1)} />}
       {entries.length > limit && (
