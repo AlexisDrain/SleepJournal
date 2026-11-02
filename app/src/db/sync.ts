@@ -29,7 +29,7 @@ export interface Connection { url: string; secret: string }
 
 export interface SyncState {
   sheetName: string | null;
-  /** The spreadsheet's address, for "Open sheet" (null until a version 4+ script reports it). */
+  /** The spreadsheet's address, for "Open in Google Sheet" (null until a version 4+ script reports it). */
   sheetUrl: string | null;
   lastPushed: string; // newest `updatedAt` already sent
   lastPulled: string; // newest sheet "Updated" already received

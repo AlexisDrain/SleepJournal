@@ -111,7 +111,7 @@ enter the same two things there.
 - **Keep the URL and key secret.** Anyone who has both can read and change your journal sheet.
   Don't commit them, post them or email them. If they ever leak, run **`rotateSecret`** and paste
   the new key into the app; the old one stops working.
-- **Open sheet**: once connected, **Settings → Google Sheet → Open sheet** opens the spreadsheet
+- **Open in Google Sheet**: once connected, **Settings → Google Sheet → Open in Google Sheet** opens the spreadsheet
   (in the Google Sheets app or your browser). You still need to be signed in to your Google
   account to see it; the button only saves you finding the file.
 - **12- or 24-hour times**: the sheet shows times the way the app is set (**Settings → Clock**).

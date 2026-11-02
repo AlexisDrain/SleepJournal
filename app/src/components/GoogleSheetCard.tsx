@@ -87,7 +87,7 @@ export function GoogleSheetCard() {
               {state.scriptVersion < 3
                 ? " changes to your routine list (new, renamed or reordered items) won't reach your other devices"
                 : state.scriptVersion < 4
-                  ? ' the "Open sheet" button and the Anytime routine list need the newer script'
+                  ? ' the "Open in Google Sheet" button and the Anytime routine list need the newer script'
                   : state.scriptVersion < 5
                     ? " items on the Anytime routine list won't reach your other devices"
                     : ' syncing stays slower and the warning about a full sheet is only an estimate'}
@@ -97,7 +97,7 @@ export function GoogleSheetCard() {
           )}
           <Button title="Sync now" onPress={onSync} busy={busy} small />
           {state?.sheetUrl && (
-            <Button title="Open sheet ↗" small color={colors.chip} textColor={colors.text}
+            <Button title="Open in Google Sheet ↗" small color={colors.chip} textColor={colors.text}
               onPress={() => Linking.openURL(state.sheetUrl!).catch(() => {})} />
           )}
           {connection && <ConnectionDetails connection={connection} />}

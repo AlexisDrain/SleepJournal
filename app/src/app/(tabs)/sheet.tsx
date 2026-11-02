@@ -7,11 +7,11 @@
 // the columns that are off screen, so it's clear on a phone that there is more to the right.
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { ActivityIndicator, Animated, FlatList, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, FlatList, Linking, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { ExportSheet } from '@/components/ExportSheet';
 import { Button, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { buildTable } from '@/db/csv';
-import { onPulled } from '@/db/sync';
+import { getSyncState, onPulled } from '@/db/sync';
 import type { ColumnGroup, SheetColumn, SheetValue } from '@/db/xlsx';
 import { arrangeColumns, loadColumnOrder, loadExcluded, loadFillGaps, loadRoutineDetail, saveColumnOrder, TEXT_COLUMNS } from '@/lib/exportPrefs';
 import { Panel } from '@/components/Panel';
@@ -52,9 +52,15 @@ export default function SheetScreen() {
   const [ordering, setOrdering] = useState(false);
   const [exporting, setExporting] = useState(false); // the same Export panel as in Settings
   const [reading, setReading] = useState<{ title: string; night: string; text: string } | null>(null);
+  const [sheetUrl, setSheetUrl] = useState<string | null>(null); // the connected Google Sheet, if any
+  const [topWidth, setTopWidth] = useState(0);
+  const [topTextWidth, setTopTextWidth] = useState(0);
+  const stacked = topTextWidth > 0 && topTextWidth >= topWidth - space.lg * 2 - 1; // the text has the top to itself
+  const topText = [styles.muted, { textAlign: stacked ? 'center' : 'left' } as const];
 
   const load = useCallback(async () => {
     setError(null);
+    setSheetUrl((await getSyncState()).sheetUrl);
     try {
       // The Sheet tab's own column choices (the "Column settings" button), saved separately from the export ones.
       const [exclude, routineDetail, fillGaps] = await Promise.all([loadExcluded('sheet'), loadRoutineDetail('sheet'), loadFillGaps('sheet')]);
@@ -228,23 +234,30 @@ export default function SheetScreen() {
 
   return (
     <View style={styles.screen}>
-      {/* Three buttons don't fit beside the count on a phone: there they wrap onto their own line. */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}>
-        <View style={{ flexGrow: 1, flexBasis: 220 }}>
-          <Muted>
+      {/* The buttons stay together: on a narrow screen they go below the text as a group, all of it centered. */}
+      <View onLayout={(e) => setTopWidth(e.nativeEvent.layout.width)}
+        style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}>
+        <View onLayout={(e) => setTopTextWidth(e.nativeEvent.layout.width)} style={{ flexGrow: 1, flexShrink: 1, flexBasis: 'auto' }}>
+          <Text style={topText}>
             For an easier-to-read table, see{' '}
             <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="link"
               onPress={() => router.navigate('/stats')}>Night by night in Stats</Text>.
-          </Muted>
-          <Muted>
+          </Text>
+          <Text style={topText}>
             {loading
               ? 'Loading…'
               : `${rows.length} night${rows.length === 1 ? '' : 's'}${years.length > 1 ? ` in ${year}` : ''}${scrollable ? ' · swipe sideways for more columns →' : ''}`}
-          </Muted>
+          </Text>
         </View>
-        <Button title="Column settings" small onPress={() => setChoosing(true)} color={colors.chip} textColor={colors.text} />
-        <Button title="Column order" small onPress={() => setOrdering(true)} color={colors.chip} textColor={colors.text} />
-        <Button title="Export…" small onPress={() => setExporting(true)} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.md, flexShrink: 1, maxWidth: '100%' }}>
+          <Button title="Column settings" small onPress={() => setChoosing(true)} color={colors.chip} textColor={colors.text} />
+          <Button title="Column order" small onPress={() => setOrdering(true)} color={colors.chip} textColor={colors.text} />
+          {sheetUrl && (
+            <Button title="Open in Google Sheet ↗" small color={colors.chip} textColor={colors.text}
+              onPress={() => Linking.openURL(sheetUrl).catch(() => {})} />
+          )}
+          <Button title="Export…" small onPress={() => setExporting(true)} />
+        </View>
       </View>
       {error && <View style={{ paddingHorizontal: space.lg }}><ErrorBox message={error} onRetry={load} /></View>}
       {years.length > 1 && (
