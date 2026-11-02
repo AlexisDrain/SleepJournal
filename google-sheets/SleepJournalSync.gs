@@ -30,7 +30,7 @@
  * Bump this whenever the script changes in a way the app should know about. The app compares it
  * with the version it was built for and tells the user when their sheet's script is out of date.
  */
-const SCRIPT_VERSION = 6;
+const SCRIPT_VERSION = 7;
 
 const NIGHT = 'Night of';
 const UPDATED = 'Updated';
@@ -107,9 +107,16 @@ function doPost(e) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     // url: this spreadsheet's own address, for the app's "Open sheet" button. Opening it still needs your Google login.
     if (req.action === 'ping') return json_({ ok: true, sheet: ss.getName(), url: ss.getUrl(), version: SCRIPT_VERSION });
-    if (req.action === 'push') return json_(withVersion_(push_(ss, req.columns, req.rows)));
+    if (req.action === 'push') {
+      // Version 7: the app's routine list can come along. It goes first, so its columns carry the new names.
+      if (req.items) routineSet_(ss, req.items);
+      return json_(withVersion_(push_(ss, req.columns, req.rows)));
+    }
     if (req.action === 'pull') {
+      // Version 7: the routine list can come back with the nights (read first, so the columns carry its names).
+      const items = req.routine ? routineGet_(ss) : null;
       const pulled = pull_(ss, req.since || '');
+      if (items) pulled.items = items;
       pulled.sheet = ss.getName();
       pulled.url = ss.getUrl();
       pulled.cells = cells_(ss);

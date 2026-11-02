@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 import type { Phase, RoutinePhase } from '@/lib/types';
-import { colors, space } from '@/lib/theme';
+import { colors, radius, space } from '@/lib/theme';
 import { canSetToNow, formatClockTime, nowOnNight, timeOnNight, toLocalIso, type ClockTime } from '@/lib/time';
 import { TimePicker } from './TimePicker';
 import { Row } from './ui';
@@ -34,7 +34,8 @@ export function TimeField({ label, value, onChange, nightOf, phase, accent, usua
   return (
     <Row label={label}>
       {value === null ? (
-        <Pressable onPress={start} hitSlop={8}>
+        <Pressable onPress={start} hitSlop={8} accessibilityRole="button"
+          style={({ pressed }) => ({ borderWidth: 1, borderColor: accent, borderRadius: radius, paddingVertical: 6, paddingHorizontal: space.md, opacity: pressed ? 0.75 : 1 })}>
           <Text style={{ color: accent, fontSize: 16 }}>{now ? 'Set to now' : `Set · ${formatClockTime(usual)}`}</Text>
         </Pressable>
       ) : (

@@ -359,7 +359,23 @@ function guessKind(values: string[]): RoutineItem['kind'] {
 export interface RoutineColumn { index: number; item: RoutineItem }
 
 /** Routine columns ("Bedtime: Brush teeth") → routine items, created if missing. Blank columns are ignored. */
-export async function routineColumnsFor(header: string[], body: string[][]): Promise<RoutineColumn[]> {
+/** A routine item as the sheet's own list has it (only what names a column). */
+export interface SheetItemName { id: string; phase: RoutinePhase; label: string; order: number; hidden: boolean }
+
+/**
+ * The item that owns a column, going by the sheet's own list (which named the columns): an item
+ * renamed here and not sent yet still has its old name in the sheet.
+ */
+function ownerInSheet(items: RoutineItem[], sheetItems: SheetItemName[], phase: RoutinePhase, label: string) {
+  const named = sheetItems.flatMap((r) => {
+    const mine = items.find((i) => i.uid === r.id);
+    return mine ? [{ ...mine, phase: r.phase, label: r.label, archived: r.hidden, sortOrder: r.order }] : [];
+  });
+  const owner = columnOwner(named, phase, label);
+  return owner && items.find((i) => i.id === owner.id);
+}
+
+export async function routineColumnsFor(header: string[], body: string[][], sheetItems?: SheetItemName[]): Promise<RoutineColumn[]> {
   const items = await store.routine.listAll();
   const cols: RoutineColumn[] = [];
   for (const [index, name] of header.entries()) {
@@ -367,7 +383,7 @@ export async function routineColumnsFor(header: string[], body: string[][]): Pro
     if (!phase) continue;
     const label = name.slice(PHASE_PREFIX[phase].length);
     const values = body.map((r) => r[index] ?? '');
-    const existing = columnOwner(items, phase, label);
+    const existing = (sheetItems && ownerInSheet(items, sheetItems, phase, label)) || columnOwner(items, phase, label);
     if (existing?.sortOrder === DELETED_ORDER) continue; // its old column stays in the sheet, unread
     if (existing) cols.push({ index, item: existing });
     else if (values.some((v) => v.trim() !== '')) {

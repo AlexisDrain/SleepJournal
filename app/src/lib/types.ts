@@ -49,3 +49,9 @@ export interface RoutineItem {
 }
 
 export interface Nap { id: number; startAt: string; endAt: string | null; note: string | null }
+
+/**
+ * The most a dream, note or routine text can hold. Excel is the strictest place it goes (32,767
+ * characters in a cell, for the .xlsx export); Google Sheets allows 50,000 and the app's database far more.
+ */
+export const TEXT_MAX = 20_000;

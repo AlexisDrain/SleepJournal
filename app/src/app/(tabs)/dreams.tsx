@@ -1,5 +1,5 @@
 // Dreams: every dream you wrote down, newest first, to read like a diary. Search by word, or
-// let the app pick one at random.
+// let the app pick one at random. A long dream shows its beginning, with a button to read the rest.
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Text, View } from 'react-native';
@@ -66,22 +66,46 @@ export default function DreamsScreen() {
             <>
               <Input placeholder="Search your dreams" value={query} onChangeText={setQuery} autoCorrect={false} />
               <Button title="✦ Read a random dream" small color={colors.chip} textColor={colors.text} onPress={surprise} />
-              {picked && <DreamCard e={picked} highlight />}
+              {picked && <DreamCard key={picked.nightOf} e={picked} highlight />}
             </>
           )}
         </View>
       }
-      renderItem={({ item }) => <DreamCard e={item} />}
+      // While searching, dreams show in full: the word found may be past the beginning.
+      renderItem={({ item }) => <DreamCard e={item} full={!!words} />}
     />
   );
 }
 
+const PREVIEW_CHARS = 600;
+const PREVIEW_LINES = 10;
+
+/** The beginning of a long dream (ending at a word, with "…"), or null when it's short enough to show whole. */
+function beginning(text: string): string | null {
+  const lines = text.split('\n');
+  if (text.length <= PREVIEW_CHARS && lines.length <= PREVIEW_LINES) return null;
+  let cut = lines.slice(0, PREVIEW_LINES).join('\n');
+  if (cut.length > PREVIEW_CHARS) {
+    cut = cut.slice(0, PREVIEW_CHARS);
+    const space = cut.lastIndexOf(' ');
+    if (space > PREVIEW_CHARS * 0.8) cut = cut.slice(0, space);
+  }
+  return cut.trimEnd() + '…';
+}
+
 /** A dream is from the morning after its night: "Sunday, Oct 25" for the night of Saturday. */
-function DreamCard({ e, highlight }: { e: Entry; highlight?: boolean }) {
+function DreamCard({ e, highlight, full }: { e: Entry; highlight?: boolean; full?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const short = full ? null : beginning(e.dream!);
   return (
     <View style={[styles.card, { marginBottom: 0, gap: space.sm }, highlight && { borderColor: colors.night, borderWidth: 2 }]}>
       <Text style={{ color: colors.night, fontWeight: '700' }}>☁ {dayLabel(addDays(e.nightOf, 1))}</Text>
-      <Text selectable style={{ color: colors.text, fontSize: 16, lineHeight: 24 }}>{e.dream}</Text>
+      <Text selectable style={{ color: colors.text, fontSize: 16, lineHeight: 24 }}>{short && !open ? short : e.dream}</Text>
+      {short && (
+        <View style={{ alignSelf: 'flex-start' }}>
+          <Button title={open ? 'Show less' : 'Read the rest'} small color={colors.chip} textColor={colors.text} onPress={() => setOpen((o) => !o)} />
+        </View>
+      )}
       {e.tags.length > 0 && <Muted>{e.tags.join(' · ')}</Muted>}
     </View>
   );

@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ComponentRef, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 import { onThemeChange } from '../lib/displayMode';
 import { colors, radius, space } from '../lib/theme';
+import { TEXT_MAX } from '../lib/types';
 
 export function Card({ title, children, right }: { title?: string; children: ReactNode; right?: ReactNode }) {
   return (
@@ -86,13 +88,40 @@ export function Chip({ label, selected, onPress, color = colors.night }: {
   );
 }
 
+export { TEXT_MAX } from '../lib/types';
+
 export function Input(props: TextInputProps) {
+  // Phones grow a box of several lines with its text; a browser doesn't, so there it's sized by hand
+  // (straight on the page: going through React state makes the browser box resize itself in a loop).
+  const box = useRef<ComponentRef<typeof TextInput>>(null);
+  const growOnWeb = Platform.OS === 'web' && !!props.multiline;
+  useLayoutEffect(() => {
+    const el = box.current as unknown as HTMLTextAreaElement | null;
+    if (!growOnWeb || !el?.style) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`; // plus the border
+  }, [growOnWeb, props.value]);
   return (
     <TextInput
+      ref={box}
       placeholderTextColor={colors.muted}
       {...props}
-      style={[styles.input, props.multiline && { minHeight: 72, textAlignVertical: 'top' }, props.style]}
+      // A long text doesn't push the rest of the page down: past this height the box scrolls.
+      style={[styles.input, props.multiline && { minHeight: 72, maxHeight: 200, textAlignVertical: 'top' }, props.style]}
     />
+  );
+}
+
+/** A box for a dream or a note: several lines, up to TEXT_MAX, with a count once it's nearly full. */
+export function LongTextInput(props: TextInputProps) {
+  const length = props.value?.length ?? 0;
+  return (
+    <View style={{ gap: space.xs }}>
+      <Input multiline maxLength={TEXT_MAX} {...props} />
+      {length >= TEXT_MAX * 0.9 && (
+        <Text style={[styles.muted, { textAlign: 'right' }]}>{length.toLocaleString()} / {TEXT_MAX.toLocaleString()} characters</Text>
+      )}
+    </View>
   );
 }
 

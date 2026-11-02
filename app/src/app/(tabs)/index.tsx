@@ -15,7 +15,7 @@ import { TagManager } from '@/components/TagManager';
 import { LatencyPicker, NightSwitcher, RESTED_LABELS, RestedScale, TagPicker } from '@/components/inputs';
 import { NapsCard } from '@/components/NapsCard';
 import { TimeField } from '@/components/TimeField';
-import { Button, Card, Chip, ErrorBox, Input, Muted, styles } from '@/components/ui';
+import { Button, Card, Chip, ErrorBox, LongTextInput, Muted, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
 import { bedtimeProblem, negativeSleep, dueSlot, isFilled, loadUsualTimes, pickStart, untilHint, usualTimes, wakeTimeProblem, type Start, type UsualTimes } from '@/lib/journal';
@@ -325,7 +325,7 @@ function bedtimeSteps({ nightOf, draft, usual, combine }: FieldProps): Step[] {
     id: 'note',
     question: 'Anything to note before sleeping?',
     label: 'Note',
-    body: <Input multiline placeholder="e.g. must wake up at 8 am for ✈️, or leave blank"
+    body: <LongTextInput placeholder="e.g. must wake up at 8 am for ✈️, or leave blank"
       value={draft.get('bedtimeNote') ?? ''} onChangeText={(t) => draft.set('bedtimeNote', t || null)} />,
   };
   if (combine.bed) {
@@ -435,7 +435,7 @@ function morningSteps({ nightOf, draft, rested, usual, combine }: FieldProps): S
       id: 'dream',
       question: 'Do you remember a dream?',
       label: 'Dream',
-      body: <Input multiline placeholder="Leave blank if you don't remember"
+      body: <LongTextInput placeholder="Leave blank if you don't remember"
         value={draft.get('dream') ?? ''} onChangeText={(t) => draft.set('dream', t || null)} />,
     },
     {

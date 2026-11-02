@@ -23,7 +23,7 @@ const STATE_KEY = 'sleepjournal.sheetSync.v1';
 const PUSH_BATCH = 200;
 const REQUEST_LIMIT_MS = 90_000; // Apps Script is slow, and a big push takes a while
 /** The version of google-sheets/SleepJournalSync.gs this app was built for (its SCRIPT_VERSION). */
-export const LATEST_SCRIPT_VERSION = 6;
+export const LATEST_SCRIPT_VERSION = 7;
 
 export interface Connection { url: string; secret: string }
 
@@ -214,6 +214,14 @@ async function syncRoutine(conn: Connection): Promise<boolean> {
     if ((e as Error).message === 'Unknown action') return false; // the sheet's script is older than version 3
     throw e;
   }
+  const changed = await mergeRoutine(remote);
+  const mineNow = (await store.routine.listAll()).map(toSheetItem);
+  if (listKey(mineNow) !== listKey(remote)) await call(conn, 'routine-set', { items: mineNow });
+  return changed;
+}
+
+/** The sheet's routine list → this device's. Returns whether anything changed here. */
+async function mergeRoutine(remote: SheetRoutineItem[]): Promise<boolean> {
   await store.routine.renameDeleted();
   const local = await store.routine.listAll();
   const remoteIds = new Set(remote.map((r) => r.id));
@@ -248,8 +256,6 @@ async function syncRoutine(conn: Connection): Promise<boolean> {
     // Deleted on another device: its ticks go too.
     await tx.runAsync(`DELETE FROM entry_routine WHERE item_id IN (SELECT id FROM routine_items WHERE sort_order = ?)`, DELETED_ORDER);
   });
-  const mineNow = (await store.routine.listAll()).map(toSheetItem);
-  if (listKey(mineNow) !== listKey(remote)) await call(conn, 'routine-set', { items: mineNow });
   return changed;
 }
 
@@ -267,12 +273,28 @@ export function onPulled(fn: () => void): () => void {
 let running: Promise<{ pushed: number; pulled: number }> | null = null;
 let again = false;
 
+/**
+ * Whether there's anything here the sheet hasn't had: nights with unsent edits, a night saved after
+ * the last one sent, or a routine item changed since `since`.
+ */
+async function changedHere(since: string): Promise<boolean> {
+  if ((await store.unsyncedFields()).size) return true;
+  const { lastPushed } = await getSyncState();
+  const row = await (await getDb()).getFirstAsync<{ n: number }>(
+    `SELECT (SELECT count(*) FROM entries WHERE updated_at > ?) + (SELECT count(*) FROM routine_items WHERE updated_at >= ?) AS n`,
+    lastPushed, since);
+  return (row?.n ?? 0) > 0;
+}
+
 /** Push then pull. Concurrent calls share one run. */
 export function syncNow(): Promise<{ pushed: number; pulled: number }> {
-  // Already running: it may be past the point of collecting edits, so go again when it ends.
+  // Already running: it may be past the point of collecting edits, so go again when it ends, but
+  // only if something did change here meanwhile. Launch and coming back to the app both ask for a
+  // sync at the same moment, and one sync answers both.
   if (running) again = true;
   if (!running) {
     setStatus('syncing');
+    const started = new Date().toISOString().slice(0, 19) + 'Z';
     running = runSync().then(
       (r) => { setStatus('done'); return r; },
       (e) => { setStatus('failed'); throw e; },
@@ -280,7 +302,7 @@ export function syncNow(): Promise<{ pushed: number; pulled: number }> {
       running = null;
       if (again) {
         again = false;
-        requestSync(0);
+        changedHere(started).then((changed) => { if (changed) requestSync(0); }, () => {});
       }
     });
   }
@@ -306,7 +328,10 @@ async function runSync() {
   if (!conn) throw new Error('Not connected to a Google Sheet.');
   const state = await getSyncState();
   try {
-    const routineChanged = await syncRoutine(conn);
+    // Script version 7 and later: the routine list comes with the nights and goes back with them, so a
+    // sync is two requests instead of four (Apps Script takes a second or two to answer each one).
+    const together = state.scriptVersion >= 7;
+    let routineChanged = together ? false : await syncRoutine(conn);
     // The sheet shows the same fields you chose for exports; the rest are hidden there, not dropped.
     const options = { exclude: await loadExcluded(), routineDetail: await loadRoutineDetail() };
 
@@ -314,18 +339,21 @@ async function runSync() {
     // device's value; every other field takes the sheet's. So two devices that each changed a
     // different field of the same night (the dream on one, the woke-up time on the other) both
     // keep their change, whichever saved last.
-    const { tabs, version, sheet, url, cells } = await call<{ tabs: PullTab[]; version?: number; sheet?: string; url?: string; cells?: number }>(conn, 'pull', { since: state.caughtUp ? state.lastPulled : '' });
+    const { tabs, version, sheet, url, cells, items: sheetItems } = await call<{ tabs: PullTab[]; version?: number; sheet?: string; url?: string; cells?: number; items?: SheetRoutineItem[] }>(
+      conn, 'pull', { since: state.caughtUp ? state.lastPulled : '', routine: together });
     state.scriptVersion = version ?? 1;
     state.sheetCells = cells;
     if (sheet) state.sheetName = sheet; // the sheet may have been renamed
     state.sheetUrl = sheetAddress(url) ?? state.sheetUrl;
+    // The routine list first: the nights name its items. (No list back: an older script after all.)
+    if (together) routineChanged = sheetItems ? await mergeRoutine(sheetItems) : await syncRoutine(conn);
     const local = new Map((await store.listEntries({ limit: 100_000 })).map((e) => [e.nightOf, e]));
     const unsynced = await store.unsyncedFields();
     const db = await getDb();
     let pulled = 0;
     const pulledNights = new Set<string>();
     for (const tab of tabs) {
-      const routineCols = await routineColumnsFor(tab.header, tab.rows.map((r) => r.cells));
+      const routineCols = await routineColumnsFor(tab.header, tab.rows.map((r) => r.cells), sheetItems);
       await transaction(db, async (tx) => {
         for (const r of tab.rows) {
           const mine = local.get(r.nightOf);
@@ -380,11 +408,16 @@ async function runSync() {
     const changed = (await store.listEntries({ limit: 100_000 }))
       .filter((e) => full || e.updatedAt > state.lastPushed || pulledNights.has(e.nightOf) || sentWith.has(e.nightOf))
       .sort((x, y) => x.nightOf.localeCompare(y.nightOf));
+    // Version 7: this device's routine list goes with the first push, or on its own if no night goes.
+    const mineNow = (await store.routine.listAll()).map(toSheetItem);
+    const routineToSend = sheetItems && listKey(mineNow) !== listKey(sheetItems) ? mineNow : null;
+    if (routineToSend && !changed.length) await call(conn, 'push', { columns: [], rows: [], items: routineToSend });
     let pushed = 0;
     const sentRows: Record<string, string> = {};
     for (let i = 0; i < changed.length; i += PUSH_BATCH) {
       const batch = changed.slice(i, i + PUSH_BATCH);
-      const res = await call<{ written: number }>(conn, 'push', await sheetPayload(batch, options));
+      const payload = { ...(await sheetPayload(batch, options)), ...(i === 0 && routineToSend ? { items: routineToSend } : {}) };
+      const res = await call<{ written: number }>(conn, 'push', payload);
       pushed += res.written;
       for (const e of batch) {
         if (!sentWith.has(e.nightOf)) continue;

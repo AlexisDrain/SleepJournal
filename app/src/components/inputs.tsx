@@ -5,7 +5,7 @@ import { colors, space } from '@/lib/theme';
 import { addDays, formatDuration, nightLabel, nowOnNight, shortDate, toLocalIso } from '@/lib/time';
 import { SwipeRow } from './SwipeRow';
 import { pickedOnNight, TimePicker } from './TimeField';
-import { Chip, Input, Muted, styles } from './ui';
+import { Chip, Input, Muted, styles, TEXT_MAX } from './ui';
 
 /**
  * "‹  Friday night → Saturday morning  ›". Arrows step a night at a time, tapping the date opens the
@@ -193,7 +193,7 @@ export function Routine({ items, values, onChange, nightOf, phase, accent, onEdi
                 )}
               </View>
               {item.kind === 'text' && done && (
-                <Input autoFocus={v === null} value={typeof v === 'string' ? v : ''} placeholder={item.label}
+                <Input autoFocus={v === null} value={typeof v === 'string' ? v : ''} placeholder={item.label} maxLength={TEXT_MAX}
                   onChangeText={(t) => onChange(item.id, t || null)} />
               )}
             </View>

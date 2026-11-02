@@ -90,7 +90,9 @@ export function GoogleSheetCard() {
                   ? ' the "Open in Google Sheet" button and the Anytime routine list need the newer script'
                   : state.scriptVersion < 5
                     ? " items on the Anytime routine list won't reach your other devices"
-                    : ' syncing stays slower and the warning about a full sheet is only an estimate'}
+                    : state.scriptVersion < 6
+                      ? ' syncing stays slower and the warning about a full sheet is only an estimate'
+                      : ' each sync takes about twice as long as it needs to'}
               {' '}until it's updated. To update it, paste the current script into the sheet and deploy a new version (see "Updating
               the script" in the setup guide).
             </Text>

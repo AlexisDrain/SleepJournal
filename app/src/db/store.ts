@@ -147,7 +147,7 @@ export async function writeEntry(tx: SQLite.SQLiteDatabase, nightOf: string, pat
 
   if (patch.tags) {
     // Replace the whole tag set. json_each turns a JSON array into rows.
-    const names = JSON.stringify([...new Set(patch.tags.map((t) => t.trim().toLowerCase()).filter(Boolean))]);
+    const names = JSON.stringify([...new Set(patch.tags.map(tagName).filter(Boolean))]);
     await tx.runAsync(`INSERT OR IGNORE INTO tags (name) SELECT value FROM json_each(?)`, names);
     await tx.runAsync(`DELETE FROM entry_tags WHERE entry_id = ?`, id);
     await tx.runAsync(
@@ -265,6 +265,12 @@ function table<T extends { id: number }>(name: string, orderBy: string, columns:
 
 // ---------- tags ----------
 
+/**
+ * How a tag name is kept: trimmed, lowercase, and with a full-width ＋ for a plus sign (it looks the
+ * same). The sheet and exports put " + " between a night's tags, so a plain "+" would split "c++" apart.
+ */
+export const tagName = (t: string) => t.trim().toLowerCase().replace(/\+/g, '＋');
+
 const tagTable = table<Tag>('tags', 'name', { name: 'name', archived: 'archived' }, ['archived']);
 
 const tags = {
@@ -275,7 +281,7 @@ const tags = {
   create: async ({ name }: { name: string }) => {
     const db = await getDb();
     await db.runAsync(
-      `INSERT INTO tags (name) VALUES (?) ON CONFLICT (name) DO UPDATE SET archived = 0`, name.trim().toLowerCase());
+      `INSERT INTO tags (name) VALUES (?) ON CONFLICT (name) DO UPDATE SET archived = 0`, tagName(name));
   },
 
   /** Deletes a tag and takes it off every night. Those nights count as changed, so the sync carries it over. */

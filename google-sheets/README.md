@@ -135,6 +135,8 @@ enter the same two things there.
 - **Older years aren't read on every sync.** The script remembers each year tab's newest change and
   skips tabs with nothing new. It also tells the app the spreadsheet's exact cell count, for the
   warning in **Settings → Your data** near Google's 10 million cell limit. (Needs script version 6.)
+- **Faster syncing.** The routine list travels with the nights, so a sync takes two requests to
+  Google instead of four: about half the time. (Needs script version 7.)
 - **Your routine list syncs too.** The script keeps it in a **Routine items** tab (name, check-in,
   order, hidden), so the phone and the web app show the same checklist in the same order. Change
   items in the app (**Routines → Edit**); leave the *Id* column alone.

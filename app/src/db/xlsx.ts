@@ -30,10 +30,19 @@ function colName(i: number): string {
   return s;
 }
 
+const EXCEL_CELL_MAX = 32_767; // characters
+
+/** Cut to what an Excel cell holds, never through the middle of an emoji. */
+function fitCell(s: string): string {
+  if (s.length <= EXCEL_CELL_MAX) return s;
+  const last = s.charCodeAt(EXCEL_CELL_MAX - 1);
+  return s.slice(0, last >= 0xd800 && last <= 0xdbff ? EXCEL_CELL_MAX - 1 : EXCEL_CELL_MAX);
+}
+
 function cellXml(ref: string, v: SheetValue, style: number): string {
   if (v === null || v === undefined || v === '') return `<c r="${ref}" s="${style}"/>`;
   if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}" s="${style}"><v>${v}</v></c>`;
-  return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${esc(String(v))}</t></is></c>`;
+  return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${esc(fitCell(String(v)))}</t></is></c>`;
 }
 
 function stylesXml(): string {
