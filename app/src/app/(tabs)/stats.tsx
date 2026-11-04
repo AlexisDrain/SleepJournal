@@ -1,5 +1,6 @@
 // Stats: the essentials of your sleep for a period: averages, a chart of hours asleep, the most
 // used tags, and night by night the times, tags and notes. Exportable on its own.
+import { requireOptionalNativeModule } from 'expo';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -8,17 +9,20 @@ import { SETTLE_MS, SideScroll } from '@/components/PhoneTabs';
 import { Button, Card, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { exportStats } from '@/db/csv';
 import { store } from '@/db/store';
-import { onPulled } from '@/db/sync';
+import { onPulled, requestSync } from '@/db/sync';
 import { useHoursMethod } from '@/lib/advanced';
 import { useHour24 } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
+import { CBTI_LABELS, loadCbtiSources, NO_SOURCES, saveCbtiSources, withCbti, type CbtiSources, type StatsEntry } from '@/lib/cbti';
+import { shareReport } from '@/lib/printReport';
+import { buildReportHtml, reportName } from '@/lib/report';
 import { formatAfterMidnight, formatAfterNoon, summarize } from '@/lib/stats';
 import { colors, radius, space } from '@/lib/theme';
 import { loadHiddenStatsColumns, saveHiddenStatsColumns } from '@/lib/statsPrefs';
 import { addDays, currentNight, dayLabel, formatClock, formatDuration } from '@/lib/time';
 import { usePullToSync } from '@/lib/usePullToSync';
 import { page, useWide, WIDE_PAGE, NARROW_PAGE } from '@/lib/useLayout';
-import type { Entry } from '@/lib/types';
+import type { Entry, RoutineItem } from '@/lib/types';
 
 const PERIODS: { label: string; nights: number | null }[] = [
   { label: '7 nights', nights: 7 },
@@ -30,6 +34,8 @@ const PERIODS: { label: string; nights: number | null }[] = [
 const CHART_NIGHTS = 60; // more bars than this get too thin to read
 const CHART_HEIGHT = 120;
 const ROW_BATCH = 100; // rows a phone draws at a time in the night-by-night table
+// The PDF report (see printReport). Phones need an app build with expo-print in it: older ones skip the button.
+const REPORT = Platform.OS === 'web' || !!requireOptionalNativeModule('ExpoPrint');
 
 export default function StatsScreen() {
   useThemeName(); // redraw when the display changes (dark / light)
@@ -54,7 +60,29 @@ export default function StatsScreen() {
     setHidden(next);
     saveHiddenStatsColumns(next).catch(() => {});
   };
-  const cols = COLUMNS.filter((c) => !hidden.has(c.id));
+  // CBT-I: the two Morning routine items that hold its questions (see cbti.ts).
+  const [items, setItems] = useState<RoutineItem[]>([]);
+  const [sources, setSources] = useState<CbtiSources>(NO_SOURCES);
+  const [cbtiOpen, setCbtiOpen] = useState(false);
+  useEffect(() => { loadCbtiSources().then(setSources, () => {}); }, []);
+  const chooseSource = (key: keyof CbtiSources, uid: string | null) => {
+    setSources((prev) => {
+      const next = { ...prev, [key]: uid };
+      saveCbtiSources(next).catch(() => {});
+      return next;
+    });
+  };
+  const itemOf = (uid: string | null) => (uid ? items.find((i) => i.uid === uid) : undefined);
+  const nightsWithCbti = withCbti(entries, items, sources);
+  const available = COLUMNS.filter((c) =>
+    c.id === 'wakes' ? !!itemOf(sources.wakes) || entries.some((e) => e.wakeCount !== null)
+      : c.id === 'awake' ? !!itemOf(sources.awake) : true);
+  // The two CBT-I columns export as the routine items they come from.
+  const exportsOf = (c: Col) =>
+    c.id === 'wakes' && itemOf(sources.wakes) ? [`Morning: ${itemOf(sources.wakes)!.label}`]
+      : c.id === 'awake' && itemOf(sources.awake) ? [`Morning: ${itemOf(sources.awake)!.label}`]
+      : c.exports;
+  const cols = available.filter((c) => !hidden.has(c.id)).map((c) => ({ ...c, exports: exportsOf(c) }));
 
   const nights = year ? null : PERIODS[period].nights;
   // A year: its nights from Jan 1 to Dec 31. A period: the last N nights up to tonight.
@@ -63,8 +91,9 @@ export default function StatsScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [list, ys] = await Promise.all([store.listEntries({ from, to, limit: 100_000 }), store.years()]);
+      const [list, ys, its] = await Promise.all([store.listEntries({ from, to, limit: 100_000 }), store.years(), store.routine.list()]);
       setEntries(list);
+      setItems(its);
       setYears(ys);
     } catch (e) {
       setError((e as Error).message);
@@ -96,8 +125,24 @@ export default function StatsScreen() {
     }
   };
 
-  const s = summarize(entries);
-  const shown = entries.filter((e) => e.hoursAsleep !== null || e.triedSleepAt || e.inBedAt || e.dayStartedAt || e.wokeAt || e.tags.length || e.bedtimeNote || e.morningNote);
+  // A PDF of what's shown (the period, the ticked columns), to hand to a therapist or a doctor.
+  const [reporting, setReporting] = useState(false);
+  const getReport = async () => {
+    setReporting(true);
+    try {
+      const period = year ?? (nights ? `Last ${nights} nights` : 'All nights');
+      const columns = cols.map((c) => ({ label: c.label, right: c.right, long: LONG_TEXT.has(c.id), text: (e: StatsEntry) => c.cell(e).text }));
+      await shareReport(buildReportHtml(shown, columns, period), reportName());
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const s = summarize(nightsWithCbti);
+  // The table runs oldest to newest, like the spreadsheet: the latest night is the bottom row.
+  const shown = nightsWithCbti.filter((e) => e.hoursAsleep !== null || e.triedSleepAt || e.inBedAt || e.dayStartedAt || e.wokeAt || e.tags.length || e.bedtimeNote || e.morningNote || e.wakes !== null || e.awakeMin !== null).reverse();
 
   const header = (
     <View style={{ gap: space.md }}>
@@ -133,7 +178,7 @@ export default function StatsScreen() {
         <Tile label="Nights" value={String(s.nights)} note={year ? `in ${year}` : nights ? `of the last ${nights}` : 'recorded'} color={colors.muted} />
       </View>
 
-      <HoursChart entries={entries} average={s.avgHours} blank={!drawn} />
+      <HoursChart entries={nightsWithCbti} average={s.avgHours} blank={!drawn} />
 
       {s.tags.length > 0 && (
         <Card title="Tags">
@@ -146,16 +191,23 @@ export default function StatsScreen() {
       {/* On a phone the two buttons don't fit beside the heading: they wrap under it. */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.md }}>
         <Text style={[styles.cardTitle, { flexGrow: 1, flexBasis: 160 }]}>Night by night</Text>
+        {REPORT && <Button title="Get report .pdf" small busy={reporting} color={colors.chip} textColor={colors.text} onPress={getReport} />}
         <Button title="Export .xlsx (recommended)" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('xlsx')} />
         <Button title="Export .csv" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('csv')} />
       </View>
       {/* Each column on or off: on screen and in the export alike. */}
       <View style={styles.chips}>
-        {COLUMNS.map((c) => (
+        {available.map((c) => (
           <Chip key={c.id} label={`${hidden.has(c.id) ? '☐' : '☑'} ${c.label}`} selected={!hidden.has(c.id)} onPress={() => toggle(c.id)} />
         ))}
       </View>
-      <Muted>Untick a column to hide it here and leave it out of the export. The export has the nights shown.</Muted>
+      <Muted>Untick a column to hide it here and leave it out of the export. The export has the nights shown.{REPORT ? ' The report is a page to print or share (with a therapist, say), with your averages, chart and these columns; dreams stay out.' : ''}</Muted>
+      <Text style={{ color: colors.muted, fontSize: 13 }}>
+        Doing CBT-I (therapy for insomnia)?{' '}
+        <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="button" onPress={() => setCbtiOpen(true)}>
+          {[sources.wakes, sources.awake].some((u) => itemOf(u) && !itemOf(u)!.archived) ? 'Its questions' : 'Add its questions'}
+        </Text>
+      </Text>
       {shown.length > 0 && (wide ? <TableHeader cols={cols} /> : <SwipeTable entries={shown} cols={cols} onRead={setReading} blank={!drawn} />)}
     </View>
   );
@@ -175,6 +227,8 @@ export default function StatsScreen() {
         ListEmptyComponent={shown.length ? undefined : <Muted>{entries.length ? 'No times, tags or notes in this period yet.' : 'No nights in this period yet.'}</Muted>}
         renderItem={({ item, index }) => <NightRow e={item} cols={cols} odd={index % 2 === 1} last={index === shown.length - 1} onRead={setReading} />}
       />
+      <CbtiPanel visible={cbtiOpen} onClose={() => setCbtiOpen(false)} items={items} sources={sources}
+        onChoose={chooseSource} onAdded={setItems} onError={setError} />
       <Panel visible={reading !== null} onClose={() => setReading(null)}>
         <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>{reading?.title}</Text>
         <Muted>Night of {reading ? dayLabel(reading.nightOf) : ''}</Muted>
@@ -245,7 +299,7 @@ interface Col {
   right?: boolean;
   /** The export columns this one stands for. */
   exports: string[];
-  cell: (e: Entry) => { text: string; color?: string; bold?: boolean };
+  cell: (e: StatsEntry) => { text: string; color?: string; bold?: boolean };
 }
 
 const NIGHT_COL = { flex: 1.3, width: 104 };
@@ -259,6 +313,10 @@ const COLUMNS: Col[] = [
     cell: (e) => { const t = e.triedSleepAt ?? e.inBedAt; return { text: t ? formatClock(t) : '—' }; } },
   { id: 'latency', label: 'To fall asleep', flex: 0.9, width: 92, exports: ['Minutes to fall asleep'],
     cell: (e) => ({ text: e.sleepLatencyMin === null ? '—' : formatDuration(e.sleepLatencyMin) }) },
+  { id: 'wakes', label: 'Woke in night', flex: 0.8, width: 80, right: true, exports: ['Times woke up'],
+    cell: (e) => ({ text: e.wakes === null ? '—' : String(e.wakes) }) },
+  { id: 'awake', label: 'Awake in night', flex: 0.9, width: 92, exports: [],
+    cell: (e) => ({ text: e.awakeMin === null ? '—' : formatDuration(e.awakeMin) }) },
   { id: 'woke', label: 'Woke up', flex: 1, width: 92, exports: ['Woke up'],
     cell: (e) => ({ text: e.wokeAt ? formatClock(e.wokeAt) : '—' }) },
   { id: 'started', label: 'Started day', flex: 1, width: 92, exports: ['Started day'],
@@ -302,7 +360,7 @@ interface Reading { title: string; nightOf: string; text: string }
 const LONG_TEXT = new Set(['tags', 'notes']);
 
 function NightRow({ e, cols, odd, last, onRead, fixed = false }: {
-  e: Entry; cols: Col[]; odd: boolean; last: boolean; onRead: (r: Reading) => void; fixed?: boolean;
+  e: StatsEntry; cols: Col[]; odd: boolean; last: boolean; onRead: (r: Reading) => void; fixed?: boolean;
 }) {
   return (
     <View style={{
@@ -336,11 +394,12 @@ function NightRow({ e, cols, odd, last, onRead, fixed = false }: {
 }
 
 /** Phones: the table at readable column widths, scrolling sideways, with arrows to the hidden columns. */
-function SwipeTable({ entries, cols, onRead, blank }: { entries: Entry[]; cols: Col[]; onRead: (r: Reading) => void; blank: boolean }) {
+function SwipeTable({ entries, cols, onRead, blank }: { entries: StatsEntry[]; cols: Col[]; onRead: (r: Reading) => void; blank: boolean }) {
   // A phone draws every row of this table at once, so it shows them a batch at a time: a year or
-  // more of nights would otherwise make the tab slow to open.
+  // more of nights would otherwise make the tab slow to open. The newest are at the bottom, so it
+  // starts with the latest nights and adds earlier ones above them.
   const [limit, setLimit] = useState(ROW_BATCH);
-  const rows = entries.slice(0, limit);
+  const rows = entries.slice(Math.max(0, entries.length - limit));
   const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
   const [x, setX] = useState(0);
   const [viewW, setViewW] = useState(0);
@@ -352,6 +411,13 @@ function SwipeTable({ entries, cols, onRead, blank }: { entries: Entry[]; cols: 
     setX(next); // don't wait for the scroll event (browsers may skip it while animating)
   };
   return (
+    <>
+    {entries.length > limit && (
+      <View style={{ marginTop: space.sm }}>
+        <Button title={`Show ${Math.min(ROW_BATCH, entries.length - limit)} earlier nights (${entries.length - limit} left)`} small
+          color={colors.chip} textColor={colors.text} onPress={() => setLimit(limit + ROW_BATCH)} />
+      </View>
+    )}
     <View style={{ marginTop: space.sm }} onLayout={(e) => setViewW(e.nativeEvent.layout.width)}>
       <SideScroll>
         <ScrollView ref={scroller} horizontal persistentScrollbar scrollEventThrottle={32}
@@ -365,13 +431,72 @@ function SwipeTable({ entries, cols, onRead, blank }: { entries: Entry[]; cols: 
       </SideScroll>
       {more.left && <Arrow side="left" onPress={() => jump(-1)} />}
       {more.right && <Arrow side="right" onPress={() => jump(1)} />}
-      {entries.length > limit && (
-        <View style={{ marginTop: space.md }}>
-          <Button title={`Show ${Math.min(ROW_BATCH, entries.length - limit)} more (${entries.length - limit} left)`} small
-            color={colors.chip} textColor={colors.text} onPress={() => setLimit(limit + ROW_BATCH)} />
-        </View>
-      )}
     </View>
+    </>
+  );
+}
+
+/**
+ * CBT-I's two extra morning questions, as Morning routine items: add them, or take them away again.
+ * Removing one hides it (like Hide in Routines), so the nights already answered keep their answers,
+ * and adding it again brings the same item back.
+ */
+function CbtiPanel({ visible, onClose, items, sources, onChoose, onAdded, onError }: {
+  visible: boolean; onClose: () => void; items: RoutineItem[]; sources: CbtiSources;
+  onChoose: (key: keyof CbtiSources, uid: string | null) => void; onAdded: (items: RoutineItem[]) => void; onError: (m: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const keys = Object.keys(CBTI_LABELS) as (keyof CbtiSources)[];
+  const itemFor = (k: keyof CbtiSources) => items.find((i) => i.uid === sources[k]);
+  const shown = (k: keyof CbtiSources) => { const i = itemFor(k); return !!i && !i.archived; };
+  const missing = keys.filter((k) => !shown(k));
+  const act = (fn: () => Promise<void>) => async () => {
+    setBusy(true);
+    try {
+      await fn();
+      onAdded(await store.routine.list());
+      requestSync(); // to the Google Sheet, if connected
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const add = async (k: keyof CbtiSources) => {
+    const had = itemFor(k);
+    if (had) return void (await store.routine.update(had.id, { archived: false }));
+    const made = await store.routine.create({ label: CBTI_LABELS[k], phase: 'morning', kind: 'number' });
+    onChoose(k, made.uid);
+  };
+  const remove = async (k: keyof CbtiSources) => {
+    const had = itemFor(k);
+    if (had) await store.routine.update(had.id, { archived: true });
+  };
+  return (
+    <Panel visible={visible} onClose={onClose}>
+      <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>CBT-I questions</Text>
+      <ScrollView style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ gap: space.md }}>
+        <Muted>
+          The sleep diary used in CBT-I (therapy for insomnia) asks two things the Journal doesn’t: how many times you
+          woke in the night, and how long you were awake in all. They go in your Morning routine (marked
+          <Text style={{ color: colors.morning }}> ★</Text>), and Stats shows them night by night. Hours asleep in Stats
+          (and the report) then leave out the time awake.
+        </Muted>
+        {missing.length === 2 && <Button title="Add both" busy={busy} onPress={act(async () => { for (const k of keys) await add(k); })} />}
+        {keys.map((k) => (
+          <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+            <Text style={{ color: colors.text, fontSize: 16, flex: 1 }}>
+              <Text style={{ color: colors.morning }}>★ </Text>{itemFor(k)?.label ?? CBTI_LABELS[k]}
+            </Text>
+            {shown(k)
+              ? <Button title="Remove this" small busy={busy} color={colors.chip} textColor={colors.danger} onPress={act(() => remove(k))} />
+              : <Button title="Add this" small busy={busy} color={colors.chip} textColor={colors.text} onPress={act(() => add(k))} />}
+          </View>
+        ))}
+        <Muted>Removing one hides it: nights you already answered keep their answers.</Muted>
+      </ScrollView>
+      <Button title="Close" small onPress={onClose} color={colors.chip} textColor={colors.text} />
+    </Panel>
   );
 }
 

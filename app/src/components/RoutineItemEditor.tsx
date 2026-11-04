@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { store } from '@/db/store';
 import { requestSync } from '@/db/sync';
+import { loadCbtiSources } from '@/lib/cbti';
 import type { RoutineItem, RoutinePhase } from '@/lib/types';
 import { colors, space } from '@/lib/theme';
 import { Panel } from './Panel';
@@ -26,9 +27,13 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
   const [phase, setPhase] = useState<RoutinePhase>('bedtime');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The CBT-I questions (set up in Stats) stay numbers: Stats reads a number out of them.
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     if (!item) return;
+    setLocked(false);
+    loadCbtiSources().then((s) => setLocked(s.wakes === item.uid || s.awake === item.uid), () => {});
     setLabel(item.label);
     setKind(item.kind);
     setPhase(item.phase);
@@ -56,11 +61,17 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>Edit routine item</Text>
           <Input value={label} onChangeText={setLabel} placeholder="Label" autoFocus={false} />
           <Muted>Checking it off also records:</Muted>
-          <View style={styles.chips}>
-            {(Object.keys(KIND_LABEL) as RoutineItem['kind'][]).map((k) => (
-              <Chip key={k} label={KIND_LABEL[k]} selected={kind === k} onPress={() => setKind(k)} color={accent} />
-            ))}
-          </View>
+          {locked ? (
+            <Muted>
+              {KIND_LABEL[kind]}. <Text style={{ color: colors.morning }}>★</Text> A CBT-I question from Stats, so it stays a number.
+            </Muted>
+          ) : (
+            <View style={styles.chips}>
+              {(Object.keys(KIND_LABEL) as RoutineItem['kind'][]).map((k) => (
+                <Chip key={k} label={KIND_LABEL[k]} selected={kind === k} onPress={() => setKind(k)} color={accent} />
+              ))}
+            </View>
+          )}
           <Muted>Part of:</Muted>
           <View style={styles.chips}>
             <Chip label="☾ bedtime" selected={phase === 'bedtime'} onPress={() => setPhase('bedtime')} color={colors.night} />
@@ -72,7 +83,7 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
           )}
           {error && <Text style={{ color: colors.danger }}>{error}</Text>}
           <Button title="Save" busy={busy} color={accent} disabled={!label.trim()}
-            onPress={run({ label: label.trim(), kind, phase })} />
+            onPress={run({ label: label.trim(), kind: locked ? item?.kind : kind, phase })} />
           {/* Another way to change the order, besides dragging ≡ in the list. */}
           <View style={{ flexDirection: 'row', gap: space.md }}>
             {([[-1, '▲ Move up'], [1, '▼ Move down']] as const).map(([dir, title]) => (

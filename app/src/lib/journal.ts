@@ -31,15 +31,16 @@ export function untilHint(phase: Phase, nightOf: string): string {
 
 /**
  * The calendar day the "anytime" routine list shows next to a given night. Anytime runs midnight
- * to midnight, while a night runs 3 PM to 3 PM, so the two don't line up:
- *   - on the current night it is always today;
- *   - on any other night it is the day that night ends on ("Friday night → Saturday morning": Saturday).
- * (Only between 3 PM and midnight do those differ, when today is the day the current night begins.)
+ * to midnight, while a night runs 3 PM to 3 PM, so the two don't line up. Every night moves together:
+ *   - in the evening (3 PM to midnight) a night shows the day it starts on ("Friday night": Friday);
+ *   - after midnight (until 3 PM) it shows the day it ends on ("Friday night": Saturday).
+ * So the current night always shows today, and no two nights ever show the same day.
  * Its ticks are stored with the night of that same date, so the spreadsheet row for a date holds
  * that date's anytime list.
  */
 export function anytimeDay(nightOf: string, now = new Date()): string {
-  return nightOf === currentNight(now) ? toDateString(now) : addDays(nightOf, 1);
+  const evening = currentNight(now) === toDateString(now); // the current night began today
+  return evening ? nightOf : addDays(nightOf, 1);
 }
 
 /**

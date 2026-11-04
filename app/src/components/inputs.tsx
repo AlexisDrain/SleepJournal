@@ -141,7 +141,7 @@ export function TagPicker({ all, selected, onChange }: { all: Tag[]; selected: s
  *   text   → checking it shows a text box
  * Drag a row left to edit or hide the item itself.
  */
-export function Routine({ items, values, onChange, nightOf, phase, accent, onEdit, onHide }: {
+export function Routine({ items, values, onChange, nightOf, phase, accent, onEdit, onHide, starred }: {
   items: RoutineItem[];
   values: Record<string, RoutineValue>;
   onChange: (id: number, v: RoutineValue) => void;
@@ -151,6 +151,8 @@ export function Routine({ items, values, onChange, nightOf, phase, accent, onEdi
   accent: string;
   onEdit: (item: RoutineItem) => void;
   onHide: (item: RoutineItem) => void;
+  /** Items marked with a yellow star (by uid): the CBT-I questions Stats uses. */
+  starred?: ReadonlySet<string>;
 }) {
   const [open, setOpen] = useState<Record<number, boolean>>({}); // number/text items checked but still empty
   if (!items.length) return <Muted>Nothing here yet. Add items in the Routines tab.</Muted>;
@@ -180,7 +182,9 @@ export function Routine({ items, values, onChange, nightOf, phase, accent, onEdi
                   }}>
                     {done && <Text style={{ color: colors.bg, fontWeight: '800' }}>✓</Text>}
                   </View>
-                  <Text style={{ color: done ? colors.muted : colors.text, fontSize: 16, flexShrink: 1 }}>{item.label}</Text>
+                  <Text style={{ color: done ? colors.muted : colors.text, fontSize: 16, flexShrink: 1 }}>
+                    {starred?.has(item.uid) && <Text style={{ color: colors.morning }}>★ </Text>}{item.label}
+                  </Text>
                 </Pressable>
                 {item.kind === 'time' && typeof v === 'string' && (
                   <TimePicker value={new Date(v)} accent={accent}

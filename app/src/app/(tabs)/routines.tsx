@@ -18,6 +18,7 @@ import { SortableList } from '@/components/SortableList';
 import { Button, Card, Chip, ErrorBox, Input, Muted, Row, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
+import { loadCbtiSources } from '@/lib/cbti';
 import { forgetEdits, rememberEdits } from '@/lib/pendingEdits';
 import { usePullToSync } from '@/lib/usePullToSync';
 import { anytimeDay, dueSlot, untilHint } from '@/lib/journal';
@@ -53,6 +54,7 @@ export default function RoutinesScreen() {
   // The Anytime list's own day, and that day's ticks.
   const [anyDay, setAnyDay] = useState(() => anytimeDay(nightOf));
   const [anyValues, setAnyValues] = useState<Record<string, RoutineValue>>({});
+  const [starred, setStarred] = useState<ReadonlySet<string>>(new Set()); // the CBT-I questions (set up in Stats)
   const [calendarOpen, setCalendarOpen] = useState(false);
   const wide = useWide();
   const syncText = useSyncText(); // "Last synced …", when a Google Sheet is connected
@@ -66,6 +68,7 @@ export default function RoutinesScreen() {
     setNightOf(night);
     const day = anytimeDay(night);
     setAnyDay(day);
+    loadCbtiSources().then((s) => setStarred(new Set([s.wakes, s.awake].filter((u): u is string => !!u))), () => {});
     try {
       const [r, entry, dayEntry] = await Promise.all([store.routine.list(), store.getEntry(night), store.getEntry(day)]);
       if (shown.current !== night) return; // another night was picked meanwhile
@@ -202,7 +205,9 @@ export default function RoutinesScreen() {
                         renderItem={(r) => (
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
                             <Pressable onPress={() => setEditing(r)} style={{ flex: 1, minWidth: 0 }}>
-                              <Text style={{ color: colors.text, fontSize: 16 }}>{r.label}</Text>
+                              <Text style={{ color: colors.text, fontSize: 16 }}>
+                                {starred.has(r.uid) && <Text style={{ color: colors.morning }}>★ </Text>}{r.label}
+                              </Text>
                               {r.kind !== 'check' && <Muted>+ {KIND_LABEL[r.kind]}</Muted>}
                             </Pressable>
                             <Button title="Edit" small color={colors.chip} textColor={colors.text} onPress={() => setEditing(r)} />
@@ -214,7 +219,7 @@ export default function RoutinesScreen() {
                   ) : items.length ? (
                     <Routine items={items} values={phase === 'anytime' ? anyValues : values} onChange={tick(phase)}
                       nightOf={phase === 'anytime' ? anyDay : nightOf} phase={phase}
-                      accent={PHASE_COLOR[phase]} onEdit={setEditing} onHide={(r) => hide(r)()} />
+                      accent={PHASE_COLOR[phase]} onEdit={setEditing} onHide={(r) => hide(r)()} starred={starred} />
                   ) : (
                     <Muted>Nothing here yet. Tap Edit to add items.</Muted>
                   )}
