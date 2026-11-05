@@ -345,9 +345,9 @@ const routine = {
     }
   },
 
-  /** A new item goes to the end of its check-in's list. */
-  create: async (body: Pick<RoutineItem, 'label' | 'phase' | 'kind'>) =>
-    routineTable.create({ label: body.label, phase: body.phase, kind: body.kind, sortOrder: await endOf(body.phase), uid: newUid(), updatedAt: stamp() }),
+  /** A new item goes to the end of its check-in's list. `uidPrefix` marks what it is on every device (CBT-I). */
+  create: async (body: Pick<RoutineItem, 'label' | 'phase' | 'kind'>, uidPrefix = '') =>
+    routineTable.create({ label: body.label, phase: body.phase, kind: body.kind, sortOrder: await endOf(body.phase), uid: uidPrefix + newUid(), updatedAt: stamp() }),
 
   update: async (id: number, body: RoutineEdit) => {
     const db = await getDb();

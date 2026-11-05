@@ -18,7 +18,7 @@ import { SortableList } from '@/components/SortableList';
 import { Button, Card, Chip, ErrorBox, Input, Muted, Row, styles } from '@/components/ui';
 import { store } from '@/db/store';
 import { onPulled, requestSync } from '@/db/sync';
-import { loadCbtiSources } from '@/lib/cbti';
+import { resolveCbtiSources, starredUids } from '@/lib/cbti';
 import { forgetEdits, rememberEdits } from '@/lib/pendingEdits';
 import { usePullToSync } from '@/lib/usePullToSync';
 import { anytimeDay, dueSlot, untilHint } from '@/lib/journal';
@@ -68,11 +68,11 @@ export default function RoutinesScreen() {
     setNightOf(night);
     const day = anytimeDay(night);
     setAnyDay(day);
-    loadCbtiSources().then((s) => setStarred(new Set([s.wakes, s.awake].filter((u): u is string => !!u))), () => {});
     try {
       const [r, entry, dayEntry] = await Promise.all([store.routine.list(), store.getEntry(night), store.getEntry(day)]);
       if (shown.current !== night) return; // another night was picked meanwhile
       setRoutine(r);
+      resolveCbtiSources(r).then((s) => setStarred(starredUids(s)), () => {});
       setValues(entry?.routine ?? {});
       setAnyValues(dayEntry?.routine ?? {});
       setLoaded(true);

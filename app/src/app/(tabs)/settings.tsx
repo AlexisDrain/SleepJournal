@@ -1,6 +1,7 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, ScrollView, Switch, Text, View } from 'react-native';
+import { CbtiPanel } from '@/components/CbtiPanel';
 import { ExportSheet } from '@/components/ExportSheet';
 import { GoogleSheetCard } from '@/components/GoogleSheetCard';
 import { TimePicker } from '@/components/TimeField';
@@ -32,6 +33,11 @@ const PHASE_NAME: Record<Phase, string> = { bedtime: 'Bedtime', morning: 'Mornin
 const DATE_STYLES: [DateStyle, string][] = [['ymd', 'year-month-day'], ['mdy', 'month-day-year (US)'], ['dmy', 'day-month-year']];
 const DISPLAY_MODES: [DisplayMode, string][] = [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Light by day, dark at night']];
 const SUPPORT_MAIL = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Sleep Journal feedback (build ${buildInfo.build})`)}`;
+/** A short title for one part of a card (like the card's own title, a step in). */
+function Heading({ children, first }: { children: string; first?: boolean }) {
+  return <Text style={[styles.cardTitle, { color: colors.text, opacity: 0.7, marginTop: first ? 0 : space.md }]}>{children}</Text>;
+}
+
 const PHASE_COLOR: Record<Phase, string> = { get bedtime() { return colors.night; }, get morning() { return colors.morning; } };
 
 export default function SettingsScreen() {
@@ -51,6 +57,7 @@ export default function SettingsScreen() {
   const combine = useCombine();
   const mondayFirst = useMondayFirst();
   const dateStyle = useDateStyle();
+  const [cbtiOpen, setCbtiOpen] = useState(false); // CBT-I's questions, as in Stats
 
   const load = useCallback(async () => {
     setError(null);
@@ -157,17 +164,17 @@ export default function SettingsScreen() {
       <ExportSheet visible={exporting} onClose={() => setExporting(false)} onError={setError} />
 
       <Card title="Advanced">
+        <Heading first>Ask one time instead of two</Heading>
         <Row label="Combine “Got in bed” and “Trying to sleep”">
           <Switch value={combine.bed} trackColor={{ true: colors.night }} onValueChange={(v) => void setCombine({ bed: v })} />
         </Row>
         <Row label="Combine “Woke up” and “Started the day”">
           <Switch value={combine.morning} trackColor={{ true: colors.morning }} onValueChange={(v) => void setCombine({ morning: v })} />
         </Row>
-        <Muted>
-          The Journal asks one time instead of two. It's saved in both columns, so the spreadsheet and
-          hours asleep keep working.
-        </Muted>
-        <Text style={{ color: colors.text, fontSize: 16, marginTop: space.sm }}>Hours asleep counts</Text>
+        <Heading>CBT-I (therapy for insomnia)</Heading>
+        <Button title="Add CBT-I questions in Routines ★" small onPress={() => setCbtiOpen(true)} color={colors.chip} textColor={colors.text} />
+        <CbtiPanel visible={cbtiOpen} onClose={() => setCbtiOpen(false)} />
+        <Heading>Hours asleep counts</Heading>
         <View style={styles.chips}>
           {HOURS_METHODS.map(([method, label]) => (
             <Chip key={method} label={label} selected={hoursMethod === method}
@@ -178,7 +185,7 @@ export default function SettingsScreen() {
           The time to fall asleep is taken off each time. This changes what this device shows in Stats, the
           Sheet tab and exports. Your Google Sheet always counts Trying to sleep → Woke up.
         </Muted>
-        <Text style={{ color: colors.text, fontSize: 16, marginTop: space.sm }}>Dates in spreadsheets</Text>
+        <Heading>Dates in spreadsheets</Heading>
         <View style={styles.chips}>
           {DATE_STYLES.map(([style, label]) => (
             <Chip key={style} label={`${formatSheetDate('2026-10-23', style)} · ${label}`} selected={dateStyle === style}

@@ -3,6 +3,7 @@
 // (numbers), so they sync and export like any other; Stats is told which items they are and uses them:
 // two night-by-night columns, and hours asleep that leave out the time awake.
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { store } from '@/db/store';
 import type { Entry, RoutineItem } from './types';
 
 const KEY = 'sleepjournal.cbtiItems.v1';
@@ -25,6 +26,78 @@ export async function loadCbtiSources(): Promise<CbtiSources> {
 
 export async function saveCbtiSources(s: CbtiSources): Promise<void> {
   await AsyncStorage.setItem(KEY, JSON.stringify(s));
+}
+
+const KEYS = Object.keys(CBTI_LABELS) as (keyof CbtiSources)[];
+
+/**
+ * The start of each question's uid. The uid syncs with the item and never changes when it's renamed,
+ * so every device knows the questions by it, whatever they're called now.
+ */
+export const cbtiUidPrefix = (k: keyof CbtiSources) => `cbti-${k}-`;
+
+/**
+ * Which items are the CBT-I questions. Remembered per device; a device that hasn't been told yet finds
+ * them by their uid's mark. Items made before the mark (Nov 2026) are found by their Morning label.
+ * The one in use beats a hidden one.
+ */
+export function findCbtiSources(items: RoutineItem[], saved: CbtiSources): CbtiSources {
+  const next = { ...saved };
+  const pick = (found: RoutineItem[]) => (found.find((i) => !i.archived) ?? found[0])?.uid;
+  for (const k of KEYS) {
+    if (next[k] && items.some((i) => i.uid === next[k])) continue;
+    next[k] = pick(items.filter((i) => i.uid.startsWith(cbtiUidPrefix(k))))
+      ?? pick(items.filter((i) => i.phase === 'morning' && i.label === CBTI_LABELS[k]))
+      ?? next[k];
+  }
+  return next;
+}
+
+/** The sources for these items, saved when they were just found. */
+export async function resolveCbtiSources(items: RoutineItem[]): Promise<CbtiSources> {
+  const saved = await loadCbtiSources();
+  const next = findCbtiSources(items, saved);
+  if (KEYS.some((k) => next[k] !== saved[k])) await saveCbtiSources(next).catch(() => {});
+  return next;
+}
+
+/** The uids to mark with a ★. */
+export const starredUids = (s: CbtiSources) => new Set([s.wakes, s.awake].filter((u): u is string => !!u));
+
+const itemFor = (items: RoutineItem[], s: CbtiSources, k: keyof CbtiSources) => items.find((i) => i.uid === s[k]);
+/** The question is in the Morning routine (not hidden). */
+export const cbtiShown = (items: RoutineItem[], s: CbtiSources, k: keyof CbtiSources) => {
+  const i = itemFor(items, s, k);
+  return !!i && !i.archived;
+};
+
+/**
+ * Puts a question in the Morning routine: brings its hidden item back, or makes a new one.
+ * Returns the sources (with the new item's uid).
+ */
+export async function addCbtiQuestion(k: keyof CbtiSources): Promise<CbtiSources> {
+  const s = await resolveCbtiSources(await store.routine.list());
+  const had = itemFor(await store.routine.list(), s, k);
+  if (had) {
+    if (had.archived) await store.routine.update(had.id, { archived: false });
+    return s;
+  }
+  const made = await store.routine.create({ label: CBTI_LABELS[k], phase: 'morning', kind: 'number' }, cbtiUidPrefix(k));
+  const next = { ...s, [k]: made.uid };
+  await saveCbtiSources(next);
+  return next;
+}
+
+/** Hides a question (like Hide in Routines): nights already answered keep their answers. */
+export async function removeCbtiQuestion(k: keyof CbtiSources): Promise<void> {
+  const items = await store.routine.list();
+  const had = itemFor(items, await resolveCbtiSources(items), k);
+  if (had && !had.archived) await store.routine.update(had.id, { archived: true });
+}
+
+/** Both questions in or out at once (Settings → Advanced). */
+export async function setCbtiQuestions(on: boolean): Promise<void> {
+  for (const k of KEYS) await (on ? addCbtiQuestion(k) : removeCbtiQuestion(k));
 }
 
 /** A night with the CBT-I answers. `hoursAsleep` leaves out the minutes awake, when there are some. */

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { store } from '@/db/store';
 import { requestSync } from '@/db/sync';
-import { loadCbtiSources } from '@/lib/cbti';
+import { resolveCbtiSources } from '@/lib/cbti';
 import type { RoutineItem, RoutinePhase } from '@/lib/types';
 import { colors, space } from '@/lib/theme';
 import { Panel } from './Panel';
@@ -33,7 +33,7 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
   useEffect(() => {
     if (!item) return;
     setLocked(false);
-    loadCbtiSources().then((s) => setLocked(s.wakes === item.uid || s.awake === item.uid), () => {});
+    store.routine.list().then(resolveCbtiSources).then((s) => setLocked(s.wakes === item.uid || s.awake === item.uid), () => {});
     setLabel(item.label);
     setKind(item.kind);
     setPhase(item.phase);

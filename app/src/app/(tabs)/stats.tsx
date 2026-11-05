@@ -4,6 +4,7 @@ import { requireOptionalNativeModule } from 'expo';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { CbtiPanel } from '@/components/CbtiPanel';
 import { Panel } from '@/components/Panel';
 import { SETTLE_MS, SideScroll } from '@/components/PhoneTabs';
 import { Button, Card, Chip, ErrorBox, Muted, styles } from '@/components/ui';
@@ -13,7 +14,7 @@ import { onPulled, requestSync } from '@/db/sync';
 import { useHoursMethod } from '@/lib/advanced';
 import { useHour24 } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
-import { CBTI_LABELS, loadCbtiSources, NO_SOURCES, saveCbtiSources, withCbti, type CbtiSources, type StatsEntry } from '@/lib/cbti';
+import { cbtiShown, NO_SOURCES, resolveCbtiSources, withCbti, type CbtiSources, type StatsEntry } from '@/lib/cbti';
 import { shareReport } from '@/lib/printReport';
 import { buildReportHtml, reportName } from '@/lib/report';
 import { formatAfterMidnight, formatAfterNoon, summarize } from '@/lib/stats';
@@ -64,14 +65,6 @@ export default function StatsScreen() {
   const [items, setItems] = useState<RoutineItem[]>([]);
   const [sources, setSources] = useState<CbtiSources>(NO_SOURCES);
   const [cbtiOpen, setCbtiOpen] = useState(false);
-  useEffect(() => { loadCbtiSources().then(setSources, () => {}); }, []);
-  const chooseSource = (key: keyof CbtiSources, uid: string | null) => {
-    setSources((prev) => {
-      const next = { ...prev, [key]: uid };
-      saveCbtiSources(next).catch(() => {});
-      return next;
-    });
-  };
   const itemOf = (uid: string | null) => (uid ? items.find((i) => i.uid === uid) : undefined);
   const nightsWithCbti = withCbti(entries, items, sources);
   const available = COLUMNS.filter((c) =>
@@ -94,6 +87,7 @@ export default function StatsScreen() {
       const [list, ys, its] = await Promise.all([store.listEntries({ from, to, limit: 100_000 }), store.years(), store.routine.list()]);
       setEntries(list);
       setItems(its);
+      setSources(await resolveCbtiSources(its));
       setYears(ys);
     } catch (e) {
       setError((e as Error).message);
@@ -205,7 +199,7 @@ export default function StatsScreen() {
       <Text style={{ color: colors.muted, fontSize: 13 }}>
         Doing CBT-I (therapy for insomnia)?{' '}
         <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="button" onPress={() => setCbtiOpen(true)}>
-          {[sources.wakes, sources.awake].some((u) => itemOf(u) && !itemOf(u)!.archived) ? 'Its questions' : 'Add its questions'}
+          {cbtiShown(items, sources, 'wakes') || cbtiShown(items, sources, 'awake') ? 'Its questions' : 'Add its questions'}
         </Text>
       </Text>
       {shown.length > 0 && (wide ? <TableHeader cols={cols} /> : <SwipeTable entries={shown} cols={cols} onRead={setReading} blank={!drawn} />)}
@@ -227,8 +221,7 @@ export default function StatsScreen() {
         ListEmptyComponent={shown.length ? undefined : <Muted>{entries.length ? 'No times, tags or notes in this period yet.' : 'No nights in this period yet.'}</Muted>}
         renderItem={({ item, index }) => <NightRow e={item} cols={cols} odd={index % 2 === 1} last={index === shown.length - 1} onRead={setReading} />}
       />
-      <CbtiPanel visible={cbtiOpen} onClose={() => setCbtiOpen(false)} items={items} sources={sources}
-        onChoose={chooseSource} onAdded={setItems} onError={setError} />
+      <CbtiPanel visible={cbtiOpen} onClose={() => setCbtiOpen(false)} onChanged={() => void load()} />
       <Panel visible={reading !== null} onClose={() => setReading(null)}>
         <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>{reading?.title}</Text>
         <Muted>Night of {reading ? dayLabel(reading.nightOf) : ''}</Muted>
@@ -433,70 +426,6 @@ function SwipeTable({ entries, cols, onRead, blank }: { entries: StatsEntry[]; c
       {more.right && <Arrow side="right" onPress={() => jump(1)} />}
     </View>
     </>
-  );
-}
-
-/**
- * CBT-I's two extra morning questions, as Morning routine items: add them, or take them away again.
- * Removing one hides it (like Hide in Routines), so the nights already answered keep their answers,
- * and adding it again brings the same item back.
- */
-function CbtiPanel({ visible, onClose, items, sources, onChoose, onAdded, onError }: {
-  visible: boolean; onClose: () => void; items: RoutineItem[]; sources: CbtiSources;
-  onChoose: (key: keyof CbtiSources, uid: string | null) => void; onAdded: (items: RoutineItem[]) => void; onError: (m: string) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const keys = Object.keys(CBTI_LABELS) as (keyof CbtiSources)[];
-  const itemFor = (k: keyof CbtiSources) => items.find((i) => i.uid === sources[k]);
-  const shown = (k: keyof CbtiSources) => { const i = itemFor(k); return !!i && !i.archived; };
-  const missing = keys.filter((k) => !shown(k));
-  const act = (fn: () => Promise<void>) => async () => {
-    setBusy(true);
-    try {
-      await fn();
-      onAdded(await store.routine.list());
-      requestSync(); // to the Google Sheet, if connected
-    } catch (e) {
-      onError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const add = async (k: keyof CbtiSources) => {
-    const had = itemFor(k);
-    if (had) return void (await store.routine.update(had.id, { archived: false }));
-    const made = await store.routine.create({ label: CBTI_LABELS[k], phase: 'morning', kind: 'number' });
-    onChoose(k, made.uid);
-  };
-  const remove = async (k: keyof CbtiSources) => {
-    const had = itemFor(k);
-    if (had) await store.routine.update(had.id, { archived: true });
-  };
-  return (
-    <Panel visible={visible} onClose={onClose}>
-      <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>CBT-I questions</Text>
-      <ScrollView style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ gap: space.md }}>
-        <Muted>
-          The sleep diary used in CBT-I (therapy for insomnia) asks two things the Journal doesn’t: how many times you
-          woke in the night, and how long you were awake in all. They go in your Morning routine (marked
-          <Text style={{ color: colors.morning }}> ★</Text>), and Stats shows them night by night. Hours asleep in Stats
-          (and the report) then leave out the time awake.
-        </Muted>
-        {missing.length === 2 && <Button title="Add both" busy={busy} onPress={act(async () => { for (const k of keys) await add(k); })} />}
-        {keys.map((k) => (
-          <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-            <Text style={{ color: colors.text, fontSize: 16, flex: 1 }}>
-              <Text style={{ color: colors.morning }}>★ </Text>{itemFor(k)?.label ?? CBTI_LABELS[k]}
-            </Text>
-            {shown(k)
-              ? <Button title="Remove this" small busy={busy} color={colors.chip} textColor={colors.danger} onPress={act(() => remove(k))} />
-              : <Button title="Add this" small busy={busy} color={colors.chip} textColor={colors.text} onPress={act(() => add(k))} />}
-          </View>
-        ))}
-        <Muted>Removing one hides it: nights you already answered keep their answers.</Muted>
-      </ScrollView>
-      <Button title="Close" small onPress={onClose} color={colors.chip} textColor={colors.text} />
-    </Panel>
   );
 }
 
