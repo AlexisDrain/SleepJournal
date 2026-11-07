@@ -5,6 +5,7 @@ import { onPulled, requestSync } from '@/db/sync';
 import { syncReminders, useReminderTap } from '@/lib/notifications';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useDisplayModeLoaded, useThemeName } from '@/lib/displayMode';
+import { useLatestUpdate } from '@/lib/latestUpdate';
 import { colors } from '@/lib/theme';
 import { installWebHead } from '@/lib/webHead';
 import { useWelcomeSeen } from '@/lib/welcome';
@@ -15,6 +16,7 @@ export default function RootLayout() {
   const welcomeSeen = useWelcomeSeen();
   const theme = useThemeName();
   const displayLoaded = useDisplayModeLoaded();
+  useLatestUpdate(); // phones: switch to a new release as soon as it's downloaded
 
   useReminderTap(!!welcomeSeen);
 
