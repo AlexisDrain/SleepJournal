@@ -71,6 +71,39 @@ async function saveState(s: SyncState) {
   await AsyncStorage.setItem(STATE_KEY, JSON.stringify(s));
 }
 
+/**
+ * Sheets are made from a template with its script inside, and Recommendation Journal's template
+ * looks much the same, with the same kind of web app URL and secret key. Its script answers this
+ * app's connection check, then fails on every sync. So the app checks which app a sheet is for.
+ */
+const OUR_APP = 'sleep-journal'; // the APP the script reports (from Nov 2026; older scripts say nothing)
+const APP_NAMES: Record<string, string> = { 'recommendation-journal': 'Recommendation Journal' };
+export function otherAppMessage(app?: string): string {
+  const name = app && (APP_NAMES[app] ?? app);
+  return `This Google Sheet is set up for ${name ? `another app, ${name}` : 'another app'}, not 1-Minute Sleep Journal. ` +
+    'Copy the 1-Minute Sleep Journal template (Settings → Google Sheet → Get the template sheet) and connect that one instead.';
+}
+
+/**
+ * Stops at a sheet made for another app. A script that names its app is clear. An older one (Sleep
+ * Journal's before November 2026, or Recommendation Journal's) names nothing, so its status page
+ * (the web app URL opened as a page) is asked: Recommendation Journal's says so. If that can't be
+ * read, the sheet is let through: a wrong one still fails on its first sync, with the same message.
+ */
+export async function checkSheetIsOurs(url: string, app: unknown): Promise<void> {
+  if (app === OUR_APP) return;
+  if (typeof app === 'string' && app) throw new Error(otherAppMessage(app));
+  let page = '';
+  try {
+    const limit = new AbortController();
+    const timeout = setTimeout(() => limit.abort(), 10_000);
+    page = await (await fetch(url, { signal: limit.signal })).text().finally(() => clearTimeout(timeout));
+  } catch {
+    return; // offline or blocked: don't stand in the way
+  }
+  if (/Recommendation Journal/i.test(page)) throw new Error(otherAppMessage('recommendation-journal'));
+}
+
 async function call<T>(conn: Connection, action: string, body: object = {}): Promise<T> {
   // A phone can freeze the app mid-request. Without a limit that request would never end, and every
   // later sync would wait behind it.
@@ -99,7 +132,11 @@ async function call<T>(conn: Connection, action: string, body: object = {}): Pro
       'Google answered with a web page instead of data. Check the script is deployed as a web app with "Who has access: Anyone".',
     );
   }
+  // Every Sleep Journal script knows these two; a script that doesn't is another app's.
+  if (!data.ok && data.error === 'Unknown action' && (action === 'push' || action === 'pull')) throw new Error(otherAppMessage());
   if (!data.ok) throw new Error(data.error ?? 'The sheet refused the request.');
+  const app = (data as { app?: unknown }).app;
+  if (typeof app === 'string' && app && app !== OUR_APP) throw new Error(otherAppMessage(app));
   return data;
 }
 
@@ -142,7 +179,8 @@ const sheetAddress = (url: unknown): string | null =>
 export async function connect(urlInput: string, keyInput = ''): Promise<string> {
   const code = tidyConnection(urlInput, keyInput);
   const conn = parseConnectionCode(code)!;
-  const { sheet, url, version } = await call<{ sheet: string; url?: string; version?: number }>(conn, 'ping');
+  const { sheet, url, version, app } = await call<{ sheet: string; url?: string; version?: number; app?: string }>(conn, 'ping');
+  await checkSheetIsOurs(conn.url, app);
   await secureStorage.set(CONNECTION_KEY, code);
   await saveState({ ...EMPTY_STATE, sheetName: sheet, sheetUrl: sheetAddress(url), scriptVersion: version ?? 1 }); // a new sheet starts from scratch: push everything
   return sheet;

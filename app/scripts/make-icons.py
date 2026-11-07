@@ -1,4 +1,4 @@
-"""Draws the Sleep Journal icon set: a crescent moon with a small warm star on dark navy.
+"""Draws the 1-Minute Sleep Journal icon set: a crescent moon with a small warm star on dark navy.
 
 Run with Python + Pillow (pip install pillow):  python scripts/make-icons.py
 Writes app/assets/*.png (phone icons) and app/public/* (web / home-screen icons).

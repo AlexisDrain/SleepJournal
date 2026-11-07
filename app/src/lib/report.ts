@@ -132,6 +132,6 @@ ${entries.length ? `<table><thead><tr>${head}</tr></thead><tbody>
 ${body}
 </tbody></table>` : '<p>No nights in this period.</p>'}
 ${tags}
-<footer>Made with Sleep Journal on ${esc(longDate(toDateString(now)))}. A night runs from the evening to the next afternoon and is named by the day it starts.</footer>
+<footer>Made with 1-Minute Sleep Journal on ${esc(longDate(toDateString(now)))}. A night runs from the evening to the next afternoon and is named by the day it starts.</footer>
 </body></html>`;
 }

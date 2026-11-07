@@ -1,24 +1,27 @@
 # App Store page
 
+The app is called **1-Minute Sleep Journal** on the App Store (plain "Sleep Journal" was
+taken). Under its icon on a home screen it's still "Sleep Journal", which fits there.
+
 Everything for the App Store Connect page: the words to paste in, and the pictures and videos to
 upload. All the nights, notes and dreams shown are made up (see `source/make-demo.py`).
 
 ## Words
 
-### Promotional Text (161 / 170 characters)
+### Promotional Text (162 / 170 characters)
 
 You can change this one any time, without sending a new version for review.
 
 ```
-A one-minute sleep diary. Log your nights in a few taps, watch your patterns over the weeks, and share a clear report with your therapist. Free, with no account.
+Two quick check-ins a day: log your nights in a few taps, watch your patterns over the weeks, and share a clear report with your therapist. Free, with no account.
 ```
 
-### Subtitle (24 / 30 characters)
+### Subtitle (29 / 30 characters)
 
 Shown under the app's name. It's in the App Information section, not the version page.
 
 ```
-A one-minute sleep diary
+Private diary for better rest
 ```
 
 ### Description (2,277 / 4,000 characters)
@@ -62,13 +65,13 @@ Licensed under Creative Commons: By Attribution 4.0 License
 http://creativecommons.org/licenses/by/4.0/
 ```
 
-### Keywords (98 / 100 characters)
+### Keywords (97 / 100 characters)
 
 Commas, no spaces. The app's name and subtitle are already searched, so their words aren't repeated
 here.
 
 ```
-insomnia,cbt-i,tracker,log,dreams,bedtime,routine,habits,rest,wake,therapy,nap,report,offline,cbti
+insomnia,cbt-i,tracker,log,dreams,bedtime,routine,habits,patterns,wake,therapy,nap,report,offline
 ```
 
 ### Support URL

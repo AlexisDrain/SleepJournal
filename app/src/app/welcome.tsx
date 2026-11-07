@@ -34,9 +34,9 @@ export default function WelcomeScreen() {
         <>
           <View style={{ alignItems: 'center', gap: space.md }}>
             <Text style={{ fontSize: 64, color: colors.night }}>☾</Text>
-            <Text style={{ color: colors.text, fontSize: 30, fontWeight: '800' }}>Sleep Journal</Text>
+            <Text style={{ color: colors.text, fontSize: 30, fontWeight: '800', textAlign: 'center' }}>1-Minute Sleep Journal</Text>
             <Text style={{ color: colors.muted, fontSize: 17, textAlign: 'center', lineHeight: 24 }}>
-              A one-minute sleep diary.{'\n'}Notice your patterns, one night at a time.
+              Two quick check-ins a day.{'\n'}Notice your patterns, one night at a time.
             </Text>
           </View>
           <Button title="Get started" onPress={() => setStep(1)} />

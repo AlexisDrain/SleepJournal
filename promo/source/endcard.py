@@ -23,9 +23,10 @@ mask = Image.new('L', icon.size, 0)
 ImageDraw.Draw(mask).rounded_rectangle((0, 0, 239, 239), radius=56, fill=255)
 img.paste(icon, ((W - 240) // 2, 560), mask)
 
-centered(860, 'Sleep', bold(96), (0xe8, 0xea, 0xf6))
-centered(970, 'Journal', bold(96), (0xff, 0xc4, 0x7a))
-centered(1120, 'A one-minute sleep diary', regular(40), (0xb9, 0xbe, 0xe0))
+centered(850, '1-Minute', bold(48), (0xff, 0xc4, 0x7a))
+centered(915, 'Sleep', bold(96), (0xe8, 0xea, 0xf6))
+centered(1025, 'Journal', bold(96), (0xff, 0xc4, 0x7a))
+centered(1175, 'Two quick check-ins a day', regular(40), (0xb9, 0xbe, 0xe0))
 
 # The credit, in the words the licence asks for.
 muted = (0x9a, 0xa0, 0xc8)

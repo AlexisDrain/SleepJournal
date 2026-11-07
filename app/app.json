@@ -34,7 +34,7 @@
       "bundler": "metro",
       "output": "single",
       "backgroundColor": "#0e1120",
-      "name": "Sleep Journal",
+      "name": "1-Minute Sleep Journal",
       "shortName": "Sleep Journal",
       "description": "A private, offline sleep diary.",
       "themeColor": "#0e1120"

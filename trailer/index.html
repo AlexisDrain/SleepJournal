@@ -1,4 +1,5 @@
-<title>Sleep Journal Trailer</title>
+<meta charset="utf-8">
+<title>1-Minute Sleep Journal Trailer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap">
@@ -50,6 +51,7 @@ body { font-family: var(--ui); padding-inline: 16px; padding-block: 24px; }
 .center { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; gap: 18px; }
 .mark { width: 120px; height: 120px; }
 .title { font: 800 104px/1 var(--display); letter-spacing: -.02em; margin: 0; }
+.kicker { font: 800 40px/1 var(--display); color: #ffc47a; letter-spacing: .01em; margin: 0 0 -6px; }
 .sub { font-size: 26px; color: var(--muted); margin: 0; }
 .pill { display: inline-block; font: 700 18px var(--ui); color: var(--bg); background: var(--green); border-radius: 999px; padding: 8px 20px; }
 .links { display: grid; gap: 8px; font: 600 24px var(--ui); color: var(--text); }
@@ -185,7 +187,7 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
       <!-- Always in the corner (except on the end card), since there is no title screen. -->
       <div class="brand" id="brand">
         <svg viewBox="0 0 120 120" aria-hidden="true"><path d="M74 18a44 44 0 1 0 28 72A38 38 0 0 1 74 18Z" fill="#9fa8ff"/><path d="M92 26l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#ffc47a"/></svg>
-        <strong>Sleep Journal</strong><span>Open Source</span>
+        <strong>1-Minute Sleep Journal</strong><span>Open Source</span>
       </div>
 
       <!-- 0. Title card (2 seconds) -->
@@ -196,8 +198,9 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
             <path d="M92 26l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#ffc47a"/>
             <path d="M104 56l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#e8eaf6"/>
           </svg>
+          <div class="kicker">1-Minute</div>
           <h1 class="title">Sleep Journal</h1>
-          <p class="sub">A one-minute sleep diary.</p>
+          <p class="sub">Two quick check-ins a day.</p>
           <span class="pill">Free &amp; Open Source</span>
         </div>
       </section>
@@ -361,7 +364,7 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
         </div>
 
         <div class="gsheet" style="left: 330px; top: 270px" id="y-gs">
-          <div class="hd"><i></i>My Sleep Journal · 2026</div>
+          <div class="hd"><i></i>1-Minute Sleep Journal · 2026</div>
           <table>
             <tr><th class="h1">Night of</th><th class="h2">In bed</th><th class="h3">Woke up</th><th class="h3">Rested</th></tr>
             <tr><td class="c1">10-11-2026</td><td class="c2">11:15 PM</td><td class="c3">7:05 AM</td><td class="c3">3</td></tr>
@@ -414,6 +417,7 @@ tr.new.flash td { box-shadow: inset 0 0 0 999px #9fa8ff33; }
             <path d="M92 26l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#ffc47a"/>
             <path d="M104 56l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#e8eaf6"/>
           </svg>
+          <div class="kicker" style="font-size: 34px">1-Minute</div>
           <h1 class="title" style="font-size: 84px">Sleep Journal</h1>
           <span class="pill">Free &amp; Open Source · No account · No ads · No tracking</span>
           <div class="links">

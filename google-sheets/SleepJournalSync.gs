@@ -7,7 +7,7 @@
  */
 
 /**
- * Sleep Journal ↔ Google Sheets sync.
+ * 1-Minute Sleep Journal ↔ Google Sheets sync.
  *
  * Paste this into Extensions → Apps Script of your own (private) spreadsheet, then follow
  * google-sheets/README.md. The app talks to it over HTTPS POST with a secret key, so the app
@@ -31,6 +31,12 @@
  * with the version it was built for and tells the user when their sheet's script is out of date.
  */
 const SCRIPT_VERSION = 7;
+
+/**
+ * Which app this script is for, in every answer, so the app can tell a sheet made for another one
+ * (Recommendation Journal's looks much the same) and say so instead of failing oddly.
+ */
+const APP = 'sleep-journal';
 
 const NIGHT = 'Night of';
 const UPDATED = 'Updated';
@@ -89,7 +95,7 @@ function rotateSecret() {
 // ---------- web app ----------
 
 function doGet() {
-  return ContentService.createTextOutput('Sleep Journal sync is running.');
+  return ContentService.createTextOutput('1-Minute Sleep Journal sync is running.');
 }
 
 function doPost(e) {
@@ -106,7 +112,7 @@ function doPost(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     // url: this spreadsheet's own address, for the app's "Open sheet" button. Opening it still needs your Google login.
-    if (req.action === 'ping') return json_({ ok: true, sheet: ss.getName(), url: ss.getUrl(), version: SCRIPT_VERSION });
+    if (req.action === 'ping') return json_({ ok: true, app: APP, sheet: ss.getName(), url: ss.getUrl(), version: SCRIPT_VERSION });
     if (req.action === 'push') {
       // Version 7: the app's routine list can come along. It goes first, so its columns carry the new names.
       if (req.items) routineSet_(ss, req.items);
@@ -346,7 +352,7 @@ function writeRoutine_(ss, items) {
     sh.setFrozenRows(1);
     sh.getRange(1, 1, 1, n).setValues([ROUTINE_COLS]).setFontWeight('bold').setBackground(COLORS.other[0]);
     sh.getRange(1, 1).setNote(
-      'Your routine checklist, kept in step with the Sleep Journal app on every device. ' +
+      'Your routine checklist, kept in step with the 1-Minute Sleep Journal app on every device. ' +
       'It is easiest to change items in the app (Routines → Edit). Do not change the Id column.'
     );
     sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, 1), n).setNumberFormat('@'); // plain text
@@ -577,6 +583,7 @@ function toIsoTime_(v) {
 
 function withVersion_(result) {
   result.version = SCRIPT_VERSION;
+  result.app = APP;
   return result;
 }
 

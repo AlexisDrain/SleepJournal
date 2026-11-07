@@ -1,6 +1,6 @@
 # Google Sheet sync: setup
 
-Sleep Journal can keep your journal in **your own private Google Sheet**: one tab per year, rows
+1-Minute Sleep Journal can keep your journal in **your own private Google Sheet**: one tab per year, rows
 sorted by night, the same green / blue / yellow columns as the export, and edits in either place
 sync both ways (the newest edit of a night wins).
 
@@ -21,7 +21,7 @@ Do this on a computer.
 
 ## A. Copy the template
 
-1. Open the template: **[Sleep Journal (template)](https://docs.google.com/spreadsheets/d/1l50vz3VIxr2xL9UeE2nO9G9v37i5nPfvdZRehS89KOI/copy)**
+1. Open the template: **[1-Minute Sleep Journal (Template)](https://docs.google.com/spreadsheets/d/1l50vz3VIxr2xL9UeE2nO9G9v37i5nPfvdZRehS89KOI/copy)**
 2. Click **Make a copy**. Google mentions that an Apps Script file is attached: that is the sync
    script, which you can read any time under **Extensions → Apps Script**.
 
@@ -32,7 +32,7 @@ Now continue with **Finish the setup**.
 
 ## B. Build it yourself
 
-1. Create a new Google Sheet (e.g. go to `sheets.new`) and name it, e.g. **Sleep Journal**.
+1. Create a new Google Sheet (e.g. go to `sheets.new`) and name it, e.g. **1-Minute Sleep Journal**.
 2. In the sheet: **Extensions → Apps Script**.
 3. Delete the sample code, paste the whole of [`SleepJournalSync.gs`](SleepJournalSync.gs), and click **Save**.
 4. Limit what the script may access. Google works out a script's permissions by scanning its code,
@@ -170,7 +170,7 @@ Your Web app URL and secret key stay the same, so there is nothing to change in 
 The template is an ordinary Google Sheet with the script inside, shared read-only with a link
 that ends in `/copy`.
 
-1. Create a new Google Sheet named **Sleep Journal (template)**. Consider which Google account you
+1. Create a new Google Sheet named **1-Minute Sleep Journal (Template)**. Consider which Google account you
    use: people opening the link can see the owner's name.
 2. **Extensions → Apps Script**: paste [`SleepJournalSync.gs`](SleepJournalSync.gs), then do step
    B.4 (the `oauthScopes` line). Save.

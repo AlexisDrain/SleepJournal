@@ -17,6 +17,8 @@ export function installWebHead() {
   add('link', { rel: 'manifest', href: '/manifest.json' }); // installable web app (Chrome, Android)
   add('meta', { name: 'theme-color', content: colors.bg });
   add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
+  // The name under the icon on a home screen: the short one (the app's full name is 1-Minute Sleep
+  // Journal, as in app.json's "web" name; its "name" and the manifest's short_name are short too).
   add('meta', { name: 'apple-mobile-web-app-title', content: 'Sleep Journal' });
   // The browser's bar color and the page behind the app follow dark / light.
   const follow = () => {

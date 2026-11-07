@@ -1,4 +1,4 @@
-# Developing Sleep Journal
+# Developing 1-Minute Sleep Journal
 
 Notes for working on the code. The [README](README.md) is for people using the app.
 

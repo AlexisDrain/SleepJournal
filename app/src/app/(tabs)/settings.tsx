@@ -32,7 +32,7 @@ const DEFAULT_REMINDER: Record<Phase, Reminder> = {
 const PHASE_NAME: Record<Phase, string> = { bedtime: 'Bedtime', morning: 'Morning' };
 const DATE_STYLES: [DateStyle, string][] = [['ymd', 'year-month-day'], ['mdy', 'month-day-year (US)'], ['dmy', 'day-month-year']];
 const DISPLAY_MODES: [DisplayMode, string][] = [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Light by day, dark at night']];
-const SUPPORT_MAIL = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Sleep Journal feedback (build ${buildInfo.build})`)}`;
+const SUPPORT_MAIL = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`1-Minute Sleep Journal feedback (build ${buildInfo.build})`)}`;
 /** A short title for one part of a card (like the card's own title, a step in). */
 function Heading({ children, first }: { children: string; first?: boolean }) {
   return <Text style={[styles.cardTitle, { color: colors.text, opacity: 0.7, marginTop: first ? 0 : space.md }]}>{children}</Text>;
@@ -154,7 +154,7 @@ export default function SettingsScreen() {
         </Muted>
         <Button title="Export…" onPress={() => setExporting(true)} small />
         <Muted>
-          Import a .csv or .xlsx exported from Sleep Journal, or your Google Sheet downloaded as .xlsx.
+          Import a .csv or .xlsx exported from 1-Minute Sleep Journal, or your Google Sheet downloaded as .xlsx.
           Nights you already have are left alone.
         </Muted>
         <Button title="Import .csv or .xlsx" onPress={importCsv} small color={colors.chip} textColor={colors.text} />
@@ -228,7 +228,7 @@ export default function SettingsScreen() {
       <Card title="About">
         {/* The build number goes up with every release (scripts/release.js): compare it between devices. */}
         <Text style={{ color: colors.text }} selectable>
-          Sleep Journal {buildInfo.version} · build {buildInfo.build}
+          1-Minute Sleep Journal {buildInfo.version} · build {buildInfo.build}
         </Text>
         <Muted>Published {buildInfo.date || 'from a development copy'}</Muted>
         {installedCode() !== null && (

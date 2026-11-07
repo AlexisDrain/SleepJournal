@@ -485,7 +485,7 @@ export async function importXlsx(bytes: Uint8Array): Promise<ImportResult> {
 async function importRows(rows: string[][]): Promise<ImportResult> {
   if (rows.length === 0) throw new Error('The file is empty.');
   const header = rows[0].map((h) => h.trim());
-  if (!header.includes('Night of')) throw new Error('This doesn\'t look like a Sleep Journal export (no "Night of" column).');
+  if (!header.includes('Night of')) throw new Error('This doesn\'t look like a 1-Minute Sleep Journal export (no "Night of" column).');
   const body = rows.slice(1);
 
   const db = await getDb();

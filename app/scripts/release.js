@@ -31,7 +31,7 @@ if (!sameBuild) {
   info.date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   fs.writeFileSync(infoFile, JSON.stringify(info, null, 2) + '\n');
 }
-console.log(`\nSleep Journal ${info.version}, build ${info.build}\n`);
+console.log(`\n1-Minute Sleep Journal ${info.version}, build ${info.build}\n`);
 
 run('npx tsc --noEmit');
 if (!sameBuild) {

@@ -26,7 +26,7 @@ export async function claimWebDatabase(): Promise<void> {
   });
   if (!got) {
     throw new Error(
-      'Sleep Journal is already open in another tab or window of this browser. Close the other one, then reload this page.',
+      '1-Minute Sleep Journal is already open in another tab or window of this browser. Close the other one, then reload this page.',
     );
   }
   claimed = true;
@@ -40,7 +40,7 @@ export function explainStorageError(e: unknown): Error {
   if (/VFS|AccessHandle|NoModificationAllowed|SecurityError|getDirectory|storage/i.test(message)) {
     return new Error(
       "This browser couldn't open the journal's storage. Private windows in Firefox and Safari don't allow it, " +
-      'so use a normal window. If this is a normal window, close other tabs showing Sleep Journal and reload. ' +
+      'so use a normal window. If this is a normal window, close other tabs showing 1-Minute Sleep Journal and reload. ' +
       `(Details: ${message})`,
     );
   }
