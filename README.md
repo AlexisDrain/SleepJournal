@@ -1,4 +1,4 @@
-# Sleep Journal
+# 1-Minute Sleep Journal
 
 A free, open-source sleep diary that takes about a minute a day. Note when you went to bed, how you slept, and tick off your routines. Your journal stays on your device: no account, no ads, no tracking.
 
