@@ -43,6 +43,9 @@ export default function TabsLayout() {
           backgroundColor: colors.card, borderTopColor: colors.cardBorder, borderRightColor: colors.cardBorder,
           ...(wide && { paddingTop: 16, minWidth: 96 }),
         },
+        // A web page cuts off what doesn't fit: under the icon's 28-pixel box the label gets 10 pixels,
+        // too short for its letters. (A phone app lets them show.)
+        ...(!wide && Platform.OS === 'web' && { tabBarIconStyle: { height: 24 } }),
         tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.muted,
         sceneStyle: { backgroundColor: colors.bg },

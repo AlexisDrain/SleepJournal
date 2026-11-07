@@ -15,3 +15,11 @@ credentials.json
 *.jks
 *.keystore
 *.mobileprovision
+
+# The promo demo data is made up, not a journal
+!promo/source/demo.csv
+# Script output: rebuilt from source/
+promo/source/raw/
+promo/source/out/
+promo/source/frames/
+promo/source/preview-overlay.png

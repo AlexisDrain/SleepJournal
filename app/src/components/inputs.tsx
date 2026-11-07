@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import type { RoutineItem, RoutinePhase, RoutineValue, Tag } from '@/lib/types';
 import { colors, space } from '@/lib/theme';
-import { addDays, formatDuration, nightLabel, nowOnNight, shortDate, toLocalIso } from '@/lib/time';
+import { EMPTY_NOTE, isTicked, tickedValue, typedNumber, typedText } from '@/lib/routineTick';
+import { addDays, formatDuration, nightLabel, shortDate } from '@/lib/time';
 import { SwipeRow } from './SwipeRow';
 import { pickedOnNight, TimePicker } from './TimeField';
 import { Chip, Input, Muted, styles, TEXT_MAX } from './ui';
@@ -137,8 +138,9 @@ export function TagPicker({ all, selected, onChange }: { all: Tag[]; selected: s
  * The routine: one checklist where some items also record something.
  *   check  → just a checkbox
  *   time   → checking it stamps the current time, which you can then adjust
- *   number → checking it shows a number box
- *   text   → checking it shows a text box
+ *   number → checking it saves 0 and shows a number box
+ *   text   → checking it saves "?" (an empty note) and shows a text box
+ * (see routineTick)
  * Drag a row left to edit or hide the item itself.
  */
 export function Routine({ items, values, onChange, nightOf, phase, accent, onEdit, onHide, starred }: {
@@ -154,23 +156,14 @@ export function Routine({ items, values, onChange, nightOf, phase, accent, onEdi
   /** Items marked with a yellow star (by uid): the CBT-I questions Stats uses. */
   starred?: ReadonlySet<string>;
 }) {
-  const [open, setOpen] = useState<Record<number, boolean>>({}); // number/text items checked but still empty
   if (!items.length) return <Muted>Nothing here yet. Add items in the Routines tab.</Muted>;
 
   return (
     <View>
       {items.map((item) => {
         const v = values[item.id] ?? null;
-        const done = (v !== null && v !== false) || !!open[item.id];
-        const toggle = () => {
-          if (done) {
-            setOpen((o) => ({ ...o, [item.id]: false }));
-            return onChange(item.id, null);
-          }
-          if (item.kind === 'check') return onChange(item.id, true);
-          if (item.kind === 'time') return onChange(item.id, toLocalIso(nowOnNight(nightOf, phase)));
-          setOpen((o) => ({ ...o, [item.id]: true }));
-        };
+        const done = isTicked(v);
+        const toggle = () => onChange(item.id, done ? null : tickedValue(item.kind, nightOf, phase));
         return (
           <SwipeRow key={item.id} onEdit={() => onEdit(item)} onHide={() => onHide(item)}>
             <View style={{ paddingVertical: space.sm, gap: space.sm }}>
@@ -192,13 +185,13 @@ export function Routine({ items, values, onChange, nightOf, phase, accent, onEdi
                 )}
                 {item.kind === 'number' && done && (
                   <Input style={{ width: 80, textAlign: 'right', paddingVertical: 6 }} keyboardType="decimal-pad"
-                    autoFocus={v === null} value={v === null ? '' : String(v)}
-                    onChangeText={(t) => onChange(item.id, t === '' || Number.isNaN(Number(t)) ? null : Number(t))} />
+                    autoFocus={v === 0} value={v === 0 || v === null ? '' : String(v)} placeholder="0"
+                    onChangeText={(t) => onChange(item.id, typedNumber(t, v))} />
                 )}
               </View>
               {item.kind === 'text' && done && (
-                <Input autoFocus={v === null} value={typeof v === 'string' ? v : ''} placeholder={item.label} maxLength={TEXT_MAX}
-                  onChangeText={(t) => onChange(item.id, t || null)} />
+                <Input autoFocus={v === EMPTY_NOTE} value={typeof v === 'string' && v !== EMPTY_NOTE ? v : ''} placeholder={item.label} maxLength={TEXT_MAX}
+                  onChangeText={(t) => onChange(item.id, typedText(t))} />
               )}
             </View>
           </SwipeRow>

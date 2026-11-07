@@ -54,8 +54,7 @@ export function timeOnNight(nightOf: string, hours: number, minutes: number, pha
 }
 
 /** "now", rounded to 5 minutes and placed on the given night */
-export function nowOnNight(nightOf: string, phase: RoutinePhase): Date {
-  const now = new Date();
+export function nowOnNight(nightOf: string, phase: RoutinePhase, now = new Date()): Date {
   const m = Math.round(now.getMinutes() / 5) * 5;
   return timeOnNight(nightOf, now.getHours() + Math.floor(m / 60), m % 60, phase);
 }
