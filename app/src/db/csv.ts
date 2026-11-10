@@ -93,6 +93,9 @@ function parseCsv(text: string): string[][] {
 /** "2026-09-26T23:30:00-07:00" → "11:30 PM", or "23:30" in 24-hour mode (the wall clock as recorded) */
 function clock(iso: string | null): string {
   if (!iso) return '';
+  // Not a time (a routine item changed to "time" that still holds a note or a number from before):
+  // as it is, so it isn't garbled, and the sheet hands it back unchanged.
+  if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(iso)) return iso;
   const [h, m] = iso.slice(11, 16).split(':').map(Number);
   return formatTime(h, m);
 }

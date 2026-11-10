@@ -179,7 +179,8 @@ export function Routine({ items, values, onChange, nightOf, phase, accent, onEdi
                     {starred?.has(item.uid) && <Text style={{ color: colors.morning }}>★ </Text>}{item.label}
                   </Text>
                 </Pressable>
-                {item.kind === 'time' && typeof v === 'string' && (
+                {/* Only a real time: an item changed to "time" can still hold notes or numbers from before. */}
+                {item.kind === 'time' && typeof v === 'string' && !Number.isNaN(new Date(v).getTime()) && (
                   <TimePicker value={new Date(v)} accent={accent}
                     onChange={(d) => onChange(item.id, pickedOnNight(d, nightOf, phase))} />
                 )}

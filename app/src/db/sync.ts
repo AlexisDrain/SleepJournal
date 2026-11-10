@@ -301,6 +301,15 @@ async function mergeRoutine(remote: SheetRoutineItem[]): Promise<boolean> {
 
 interface PullTab { header: string[]; rows: { nightOf: string; updated: string; cells: string[] }[] }
 
+/** What a sync did: nights brought in from the sheet (new here, or changed there), and nights saved to it. */
+export interface SheetNews { added: number; updated: number; saved: number }
+const newsListeners = new Set<(n: SheetNews) => void>();
+/** Called after a sync that brought nights in from the sheet (not this device's own, echoed back) or saved some. */
+export function onSheetNews(fn: (n: SheetNews) => void): () => void {
+  newsListeners.add(fn);
+  return () => newsListeners.delete(fn);
+}
+
 const pulledListeners = new Set<() => void>();
 /** Get told when a sync brought in changes from the sheet (to refresh what's on screen). */
 export function onPulled(fn: () => void): () => void {
@@ -389,6 +398,7 @@ async function runSync() {
     const unsynced = await store.unsyncedFields();
     const db = await getDb();
     let pulled = 0;
+    let added = 0; // of those pulled, nights this device didn't have
     const pulledNights = new Set<string>();
     for (const tab of tabs) {
       const routineCols = await routineColumnsFor(tab.header, tab.rows.map((r) => r.cells), sheetItems);
@@ -417,6 +427,7 @@ async function runSync() {
           const at = mine && (!theirsNewer || keep.size) ? (theirsNewer ? laterThan(r.updated) : mine.updatedAt) : r.updated;
           await writeEntry(tx, r.nightOf, patch, at);
           if (theirsNewer) pulled++;
+          if (theirsNewer && !mine) added++;
           pulledNights.add(r.nightOf);
         }
       });
@@ -469,6 +480,7 @@ async function runSync() {
 
     await saveState({ ...state, lastSyncAt: new Date().toISOString(), lastError: null });
     if (pulledNights.size || routineChanged) pulledListeners.forEach((fn) => fn());
+    if (pulled || pushed) newsListeners.forEach((fn) => fn({ added, updated: pulled - added, saved: pushed }));
     return { pushed, pulled };
   } catch (e) {
     await saveState({ ...state, lastError: (e as Error).message });

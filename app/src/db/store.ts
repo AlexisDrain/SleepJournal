@@ -349,6 +349,12 @@ const routine = {
   create: async (body: Pick<RoutineItem, 'label' | 'phase' | 'kind'>, uidPrefix = '') =>
     routineTable.create({ label: body.label, phase: body.phase, kind: body.kind, sortOrder: await endOf(body.phase), uid: uidPrefix + newUid(), updatedAt: stamp() }),
 
+  /** How many nights have an answer for this item (its type is fixed once there are some). */
+  answeredNights: async (id: number): Promise<number> => {
+    const db = await getDb();
+    return (await db.getFirstAsync<{ n: number }>(`SELECT COUNT(*) AS n FROM entry_routine WHERE item_id = ?`, id))?.n ?? 0;
+  },
+
   update: async (id: number, body: RoutineEdit) => {
     const db = await getDb();
     const now = await db.getFirstAsync<{ phase: RoutinePhase; archived: number }>(`SELECT phase, archived FROM routine_items WHERE id = ?`, id);

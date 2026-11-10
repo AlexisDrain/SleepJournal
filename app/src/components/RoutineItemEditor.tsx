@@ -27,13 +27,19 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
   const [phase, setPhase] = useState<RoutinePhase>('bedtime');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The CBT-I questions (set up in Stats) stay numbers: Stats reads a number out of them.
-  const [locked, setLocked] = useState(false);
+  // The type is fixed for the CBT-I questions (set up in Stats: Stats reads a number out of them),
+  // and for any item with answers already: the old answers would show and sync as the new type
+  // (a note read as a time, numbers turned into ticks in the Google Sheet), and could be lost.
+  const [cbti, setCbti] = useState(false);
+  const [answered, setAnswered] = useState(0);
+  const locked = cbti || answered > 0;
 
   useEffect(() => {
     if (!item) return;
-    setLocked(false);
-    store.routine.list().then(resolveCbtiSources).then((s) => setLocked(s.wakes === item.uid || s.awake === item.uid), () => {});
+    setCbti(false);
+    setAnswered(0);
+    store.routine.list().then(resolveCbtiSources).then((s) => setCbti(s.wakes === item.uid || s.awake === item.uid), () => {});
+    store.routine.answeredNights(item.id).then(setAnswered, () => {});
     setLabel(item.label);
     setKind(item.kind);
     setPhase(item.phase);
@@ -61,9 +67,14 @@ export function RoutineItemEditor({ item, onClose, onSaved }: {
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>Edit routine item</Text>
           <Input value={label} onChangeText={setLabel} placeholder="Label" autoFocus={false} />
           <Muted>Checking it off also records:</Muted>
-          {locked ? (
+          {cbti ? (
             <Muted>
               {KIND_LABEL[kind]}. <Text style={{ color: colors.morning }}>★</Text> A CBT-I question from Stats, so it stays a number.
+            </Muted>
+          ) : answered > 0 ? (
+            <Muted>
+              {KIND_LABEL[kind]}. It has answers on {answered} {answered === 1 ? 'night' : 'nights'}, so it stays this way. To record
+              something else, add a new item and hide this one: its answers are kept.
             </Muted>
           ) : (
             <View style={styles.chips}>

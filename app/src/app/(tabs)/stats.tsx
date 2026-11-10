@@ -10,15 +10,15 @@ import { SETTLE_MS, SideScroll } from '@/components/PhoneTabs';
 import { Button, Card, Chip, ErrorBox, Muted, styles } from '@/components/ui';
 import { exportStats } from '@/db/csv';
 import { store } from '@/db/store';
-import { onPulled, requestSync } from '@/db/sync';
+import { onPulled } from '@/db/sync';
 import { useHoursMethod } from '@/lib/advanced';
 import { useHour24 } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
 import { cbtiShown, NO_SOURCES, resolveCbtiSources, withCbti, type CbtiSources, type StatsEntry } from '@/lib/cbti';
 import { shareReport } from '@/lib/printReport';
-import { buildReportHtml, reportName } from '@/lib/report';
+import { buildReportHtml, reportName, type ReportGroup } from '@/lib/report';
 import { formatAfterMidnight, formatAfterNoon, summarize } from '@/lib/stats';
-import { colors, radius, space } from '@/lib/theme';
+import { colors, radius, space, tints } from '@/lib/theme';
 import { loadHiddenStatsColumns, saveHiddenStatsColumns } from '@/lib/statsPrefs';
 import { addDays, currentNight, dayLabel, formatClock, formatDuration } from '@/lib/time';
 import { usePullToSync } from '@/lib/usePullToSync';
@@ -125,7 +125,7 @@ export default function StatsScreen() {
     setReporting(true);
     try {
       const period = year ?? (nights ? `Last ${nights} nights` : 'All nights');
-      const columns = cols.map((c) => ({ label: c.label, right: c.right, long: LONG_TEXT.has(c.id), text: (e: StatsEntry) => c.cell(e).text }));
+      const columns = cols.map((c) => ({ label: c.label, right: c.right, long: LONG_TEXT.has(c.id), group: COLUMN_GROUP[c.id], text: (e: StatsEntry) => c.cell(e).text }));
       await shareReport(buildReportHtml(shown, columns, period), reportName());
     } catch (e) {
       setError((e as Error).message);
@@ -140,6 +140,18 @@ export default function StatsScreen() {
 
   const header = (
     <View style={{ gap: space.md }}>
+      {/* First on the page: what people come to Stats for most when seeing a therapist. */}
+      {/* Phones: across the width. Wide screens: a normal-sized button with its line beside it. */}
+      {REPORT && (
+        <View style={wide ? { flexDirection: 'row', alignItems: 'center', gap: space.lg } : { gap: space.sm }}>
+          <View style={wide ? { width: 220 } : undefined}>
+            <Button title="Get report .pdf" busy={reporting} onPress={getReport} />
+          </View>
+          <View style={wide ? { flex: 1 } : undefined}>
+            <Muted>A page to print or share (with a therapist, say): your averages, the chart and the night-by-night table below, for the nights chosen here. Dreams stay out.</Muted>
+          </View>
+        </View>
+      )}
       {/* Dreams and Sheet belong to Stats. On phones this card is the way to them (the bottom bar
           has no room); wide screens also have them in the menu, and show the two side by side. */}
       <Card title="More from your journal">
@@ -185,7 +197,6 @@ export default function StatsScreen() {
       {/* On a phone the two buttons don't fit beside the heading: they wrap under it. */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.md }}>
         <Text style={[styles.cardTitle, { flexGrow: 1, flexBasis: 160 }]}>Night by night</Text>
-        {REPORT && <Button title="Get report .pdf" small busy={reporting} color={colors.chip} textColor={colors.text} onPress={getReport} />}
         <Button title="Export .xlsx (recommended)" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('xlsx')} />
         <Button title="Export .csv" small busy={exporting} color={colors.chip} textColor={colors.text} onPress={() => exportAs('csv')} />
       </View>
@@ -195,7 +206,7 @@ export default function StatsScreen() {
           <Chip key={c.id} label={`${hidden.has(c.id) ? '☐' : '☑'} ${c.label}`} selected={!hidden.has(c.id)} onPress={() => toggle(c.id)} />
         ))}
       </View>
-      <Muted>Untick a column to hide it here and leave it out of the export. The export has the nights shown.{REPORT ? ' The report is a page to print or share (with a therapist, say), with your averages, chart and these columns; dreams stay out.' : ''}</Muted>
+      <Muted>Untick a column to hide it here and leave it out of the export{REPORT ? ' and the report' : ''}. The export has the nights shown.</Muted>
       <Text style={{ color: colors.muted, fontSize: 13 }}>
         Doing CBT-I (therapy for insomnia)?{' '}
         <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="button" onPress={() => setCbtiOpen(true)}>
@@ -296,6 +307,15 @@ interface Col {
 }
 
 const NIGHT_COL = { flex: 1.3, width: 104 };
+/**
+ * Each column's color, on screen and in the report, as its fields are in the Google Sheet: general
+ * green, bedtime blue, morning amber (notes cover both check-ins, so they're general).
+ */
+const COLUMN_GROUP: Record<string, ReportGroup> = {
+  hours: 'other', bed: 'bedtime', tried: 'bedtime', latency: 'morning', wakes: 'morning', awake: 'morning',
+  woke: 'morning', started: 'morning', tags: 'morning', notes: 'other',
+};
+
 const COLUMNS: Col[] = [
   { id: 'hours', label: 'Hours asleep', flex: 0.8, width: 70, right: true, exports: ['Hours asleep'],
     cell: (e) => ({ text: e.hoursAsleep === null ? '—' : String(e.hoursAsleep), bold: true,
@@ -320,7 +340,8 @@ const COLUMNS: Col[] = [
     cell: (e) => ({ text: [e.bedtimeNote, e.morningNote].filter(Boolean).join(' · ') }) },
 ];
 
-const cellText = { color: colors.text, fontSize: 14, lineHeight: 20 } as const;
+// `color` is read when drawn, so it follows dark / light (a plain value would keep the color at launch).
+const cellText = { get color() { return colors.text; }, fontSize: 14, lineHeight: 20 } as const;
 const ROW_HEIGHT = cellText.lineHeight + space.sm * 2 + 1; // + 1: the border below it
 const shortNight = (nightOf: string) => {
   const [y, m, d] = nightOf.split('-').map(Number);
@@ -329,15 +350,20 @@ const shortNight = (nightOf: string) => {
 /** Wide: share the width. Phone: a fixed width. */
 const sized = (c: { flex: number; width: number }, fixed: boolean) => (fixed ? { width: c.width } : { flex: c.flex });
 
+/** A cell's own box, in its column's color (as in the Sheet tab): the header's stronger, the rows' paler. */
+const cellBox = (id: string, header: boolean) => ({
+  backgroundColor: tints[COLUMN_GROUP[id] ?? 'other'][header ? 0 : 1],
+  paddingHorizontal: space.sm, paddingVertical: space.sm, alignSelf: 'stretch' as const,
+});
+
 function HeaderRow({ cols, fixed }: { cols: Col[]; fixed: boolean }) {
   const h = (key: string, label: string, size: object, right?: boolean) => (
-    <Text key={key} style={[styles.cardTitle, size, { fontSize: 11, textAlign: right ? 'right' : 'left' }]}>{label}</Text>
+    <View key={key} style={[size, cellBox(key, true)]}>
+      <Text style={[styles.cardTitle, { fontSize: 11, color: colors.text, textAlign: right ? 'right' : 'left' }]}>{label}</Text>
+    </View>
   );
   return (
-    <View style={{
-      flexDirection: 'row', gap: space.md, paddingHorizontal: space.md, paddingVertical: space.sm,
-      backgroundColor: colors.chip, borderTopLeftRadius: radius, borderTopRightRadius: radius,
-    }}>
+    <View style={{ flexDirection: 'row', borderTopLeftRadius: radius, borderTopRightRadius: radius, overflow: 'hidden' }}>
       {h('night', 'Night', sized(NIGHT_COL, fixed))}
       {cols.map((c) => h(c.id, c.label, sized(c, fixed), c.right))}
     </View>
@@ -357,17 +383,18 @@ function NightRow({ e, cols, odd, last, onRead, fixed = false }: {
 }) {
   return (
     <View style={{
-      flexDirection: 'row', gap: space.md, alignItems: 'flex-start', paddingHorizontal: space.md, paddingVertical: space.sm,
-      backgroundColor: odd ? colors.bg : colors.card,
+      flexDirection: 'row', alignItems: 'flex-start',
       borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.cardBorder,
-      ...(last ? { borderBottomLeftRadius: radius, borderBottomRightRadius: radius } : null),
+      ...(last ? { borderBottomLeftRadius: radius, borderBottomRightRadius: radius, overflow: 'hidden' as const } : null),
     }}>
-      <Text numberOfLines={1} style={[cellText, sized(NIGHT_COL, fixed), { fontWeight: '600' }]}>{shortNight(e.nightOf)}</Text>
+      <View style={[sized(NIGHT_COL, fixed), cellBox('night', false)]}>
+        <Text numberOfLines={1} style={[cellText, { fontWeight: '600' }]}>{shortNight(e.nightOf)}</Text>
+      </View>
       {cols.map((c) => {
         const v = c.cell(e);
         if (LONG_TEXT.has(c.id) && v.text) {
           return (
-            <Pressable key={c.id} style={sized(c, fixed)} onPress={() => onRead({ title: c.label, nightOf: e.nightOf, text: v.text })}
+            <Pressable key={c.id} style={[sized(c, fixed), cellBox(c.id, false)]} onPress={() => onRead({ title: c.label, nightOf: e.nightOf, text: v.text })}
               accessibilityRole="button" accessibilityLabel={`Read ${c.label}`}>
               <Text numberOfLines={1} style={[cellText, {
                 textDecorationLine: 'underline', textDecorationColor: colors.muted, ...(v.color ? { color: v.color } : null),
@@ -376,10 +403,12 @@ function NightRow({ e, cols, odd, last, onRead, fixed = false }: {
           );
         }
         return (
-          <Text key={c.id} numberOfLines={1} style={[cellText, sized(c, fixed), {
-            textAlign: c.right ? 'right' : 'left', fontVariant: ['tabular-nums'],
-            ...(v.color ? { color: v.color } : null), ...(v.bold ? { fontWeight: '700' as const } : null),
-          }]}>{v.text}</Text>
+          <View key={c.id} style={[sized(c, fixed), cellBox(c.id, false)]}>
+            <Text numberOfLines={1} style={[cellText, {
+              textAlign: c.right ? 'right' : 'left', fontVariant: ['tabular-nums'],
+              ...(v.color ? { color: v.color } : null), ...(v.bold ? { fontWeight: '700' as const } : null),
+            }]}>{v.text}</Text>
+          </View>
         );
       })}
     </View>
