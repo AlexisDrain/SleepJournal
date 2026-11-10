@@ -1,5 +1,8 @@
 // Web: the browser's print window, where "Save as PDF" makes the file. The report is printed from a
 // hidden frame, so the app itself stays as it is.
+
+/** Every browser can make one (from its print window). */
+export const CAN_MAKE_PDF = true;
 export async function shareReport(html: string, name: string): Promise<void> {
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');

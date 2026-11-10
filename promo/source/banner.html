@@ -1,0 +1,72 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- The banner: icon, name, a line, and three phones (plain screenshots), for places that show the
+     whole picture (GitHub's social preview, Product Hunt's gallery, a website). Too small to read in
+     the App Store's Header and Search Results, which show only its middle: those use art.html.
+     `node art.mjs --banner` captures it. ?kind=search keeps everything inside a centered box. -->
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif; color: #e8eaf6;
+    background: radial-gradient(ellipse 60% 80% at 50% 55%, rgba(159,168,255,0.26), transparent 70%),
+                radial-gradient(ellipse 30% 30% at 82% 12%, rgba(255,196,122,0.10), transparent 70%),
+                linear-gradient(160deg, #1c2046 0%, #0e1120 70%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* The part that must show. Full size for the header; the middle only for search. */
+  .box { width: 86vw; height: 100vh; display: flex; align-items: center; gap: 4vw; }
+  .text { flex: 1 1 0; min-width: 0; }
+  .icon { width: 15vh; height: 15vh; border-radius: 3.6vh; box-shadow: 0 1vh 4vh rgba(0,0,0,.4); }
+  .kicker { font-size: 5.6vh; font-weight: 700; color: #ffc47a; margin-top: 4vh; letter-spacing: 0.02em; }
+  h1 { font-size: 13vh; font-weight: 700; line-height: 1.02; margin-top: 0.6vh; letter-spacing: -0.02em; }
+  h1 span { color: #ffc47a; }
+  p { font-size: 4.6vh; color: #b9bee0; margin-top: 3vh; line-height: 1.3; max-width: 24em; }
+  .phones { flex: 0 0 auto; position: relative; height: 84vh; width: calc(84vh * 0.4615 * 2.1); }
+  .phone { position: absolute; height: 84vh; aspect-ratio: 1179 / 2556; border-radius: 5vh; overflow: hidden;
+           border: 0.7vh solid #30365c; box-shadow: 0 3vh 8vh rgba(0,0,0,.55); background: #0e1120; }
+  .phone img { width: 100%; height: 100%; display: block; }
+  .p1 { left: 0; top: 6vh; height: 74vh; transform: rotate(-8deg); }
+  .p3 { right: 0; top: 6vh; height: 74vh; transform: rotate(8deg); }
+  .p2 { left: 50%; top: 0; transform: translateX(-50%); z-index: 2; }
+  /* Search: everything in the middle 55% × 66% (the dashed box with ?guide=1) */
+  body.search .box { width: 55vw; height: 66vh; gap: 2.5vw; justify-content: center; padding: 0 1.5vw; }
+  body.search .text { flex: 0 1 auto; }
+  body.search .phones { height: 56vh; width: calc(56vh * 0.4615 * 1.72); }
+  body.search .phone { height: 56vh; border-radius: 3.4vh; border-width: 0.5vh; }
+  body.search .p1, body.search .p3 { height: 48vh; top: 4vh; }
+  body.search .long, body:not(.search) .short { display: none; }
+  body.search h1 { font-size: 8.6vh; margin-top: 0.4vh; }
+  body.search .kicker { font-size: 3.8vh; margin-top: 2.2vh; }
+  body.search .icon { width: 10vh; height: 10vh; border-radius: 2.4vh; }
+  body.search p { font-size: 3.2vh; margin-top: 1.8vh; max-width: 14em; }
+  /* The very wide header: phones run off the bottom edge */
+  body.wide .phones { height: 120vh; width: calc(120vh * 0.4615 * 2.1); margin-top: 30vh; }
+  body.wide .phone { height: 120vh; border-radius: 7vh; }
+  body.wide .p1, body.wide .p3 { height: 106vh; }
+  body.wide h1 { font-size: 15vh; }
+  body.wide .kicker { font-size: 6.4vh; }
+  body.wide p { font-size: 5.4vh; }
+  body.wide .icon { width: 18vh; height: 18vh; border-radius: 4.3vh; }
+</style>
+<body>
+  <div class="box">
+    <div class="text">
+      <img class="icon" src="out/icon.png">
+      <div class="kicker">1-Minute</div>
+      <h1>Sleep<br><span>Journal</span></h1>
+      <p><span class="short">Two quick check-ins a day.</span><span class="long">Two quick check-ins a day. Notice your patterns, one night at a time.</span></p>
+    </div>
+    <div class="phones">
+      <div class="phone p1"><img src="out/plain/01-bedtime.png"></div>
+      <div class="phone p3"><img src="out/plain/06-dreams.png"></div>
+      <div class="phone p2"><img src="out/plain/02-stats.png"></div>
+    </div>
+  </div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    if (q.get('kind')) document.body.classList.add(q.get('kind'));
+    if (q.get('wide')) document.body.classList.add('wide');
+    if (q.get('guide')) document.querySelector('.box').style.outline = '0.4vh dashed #f66'; // to check the safe box
+  </script>
+</body>

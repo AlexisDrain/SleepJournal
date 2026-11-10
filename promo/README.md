@@ -16,12 +16,29 @@ You can change this one any time, without sending a new version for review.
 Two quick check-ins a day: log your nights in a few taps, watch your patterns over the weeks, and share a clear report with your therapist. Free, with no account.
 ```
 
-### Subtitle (29 / 30 characters)
+### Subtitle (30 characters at most)
 
-Shown under the app's name. It's in the App Information section, not the version page.
+Shown under the app's name. It's in the App Information section, not the version page. Three
+options to choose from:
+
+**Option 1 (the current one), 29 / 30:**
 
 ```
 Private diary for better rest
+```
+
+**Option 2, 25 / 30.** The same line as the welcome screen, the video end card and the Header art,
+so it would appear twice on the page, a few lines apart:
+
+```
+Two quick check-ins a day
+```
+
+**Option 3, 28 / 30.** Brings in the therapy angle. If you pick it, take `cbt-i` out of the
+Keywords (the subtitle is searched already) and use the room for another word:
+
+```
+Simple sleep diary for CBT-I
 ```
 
 ### Description (2,277 / 4,000 characters)
@@ -113,9 +130,16 @@ No account or sign-in is needed: everything is stored on the device. Syncing wit
 
 - **Screenshots:** upload them in number order. The first three are the ones most people see in
   search results. Use either the captioned set or the plain one, not a mix.
-- **Search Results Asset:** App Store search shows only about the middle of this picture (the sides
-  and the top and bottom are cut off), so the icon, the name and the phones all sit inside the
-  middle 55% × 66%. Run `node art.mjs search-1920x1280 --guide` to see that box outlined.
+- **Header and Search Results:** on an iPhone the App Store shows only about the middle 40% of the
+  width and the upper-middle half of the height of these (from about 17% to 58%), zoomed in, with
+  the icon and name printed right under it. Phone screenshots there were too small to read (the
+  first version had them). So, as in Recommendation Journal's: the app's name, a short line ("Two quick check-ins a day") and two
+  of the app's own check-in cards (Bedtime ✓, Morning ✓), drawn big, all inside that area. Run
+  `node art.mjs search-1920x1280 --guide` to see it outlined.
+- **Banner (not for the App Store):** `banner/` has the earlier art with the icon, the name and three
+  phones, for places that show the whole picture: `banner-1280x640.png` for GitHub (Settings →
+  Social preview), `banner-1270x760.png` for Product Hunt's gallery, and two big ones for a website.
+  Made from `source/banner.html` with `node art.mjs --banner`.
 - **App previews:** H.264 .mp4 files with music: "Inspired" by Kevin MacLeod
   (`trailer/Inspired.mp3`). Its licence (CC BY 4.0) lets anyone use it, ads included, as long as
   it's credited, so each preview ends on a 3-second card with the credit, and the Description

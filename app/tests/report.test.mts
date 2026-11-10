@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { store } from '@/db/store';
-import { buildReportHtml, type ReportColumn } from '@/lib/report';
+import { buildReportHtml, buildReportMarkdown, reportFileName, type ReportColumn } from '@/lib/report';
 
 test('the report: nights oldest first, chosen columns only, colored by check-in, text escaped', async () => {
   await store.saveEntry('2026-10-05', {
@@ -34,4 +34,35 @@ test('the report: nights oldest first, chosen columns only, colored by check-in,
 
 test('an empty period still makes a page', () => {
   assert.ok(buildReportHtml([], [], 'All nights').includes('No nights in this period.'));
+});
+
+test('the .html report: one long page for any screen, never cut into pages', () => {
+  const pdf = buildReportHtml([], [], 'All nights', new Date(2026, 10, 9), 'print');
+  const html = buildReportHtml([], [], 'All nights', new Date(2026, 10, 9), 'screen');
+  assert.ok(pdf.includes('@page { size: landscape'), 'the PDF has its pages');
+  assert.ok(!html.includes('@page'), 'the .html has none');
+  assert.ok(html.includes('.scroll { overflow-x: auto; }'), 'a wide table scrolls sideways');
+  assert.equal(reportFileName('screen', new Date(2026, 10, 9)), 'sleep-report-2026-11-09.html');
+});
+
+test('the report as Markdown: a table, cells kept whole, no dreams', async () => {
+  await store.saveEntry('2026-10-07', { bedtimeNote: 'tea | then\nbed', dream: 'another private dream' });
+  const entries = [...(await store.listEntries({ from: '2026-10-07', to: '2026-10-07' }))];
+  const cols: ReportColumn[] = [
+    { label: 'Hours asleep', right: true, text: (e) => String(e.hoursAsleep ?? '') },
+    { label: 'Notes', long: true, text: (e) => e.bedtimeNote ?? '' },
+  ];
+  const md = buildReportMarkdown(entries, cols, 'Last 7 nights', new Date(2026, 10, 9));
+  assert.ok(md.startsWith('# Sleep diary'));
+  assert.ok(md.includes('*1-Minute Sleep Journal* · Last 7 nights'));
+  assert.ok(md.includes('| Night | Hours asleep | Notes |') && md.includes('| --- | ---: | --- |'), 'numbers to the right');
+  assert.ok(md.includes('tea \| then bed'), 'a "|" and a line break can\'t break the table');
+  assert.ok(!md.includes('private dream'), 'dreams stay out');
+});
+
+test('the dark report: the app\'s dark colors, the sheet colors as in its Sheet tab', () => {
+  const dark = buildReportHtml([], [], 'All nights', new Date(2026, 10, 9), 'screen', 'dark');
+  assert.ok(dark.includes('color-scheme: dark') && dark.includes('background: #0e1120'));
+  assert.ok(dark.includes('th.g-bedtime { background: #2a3170; }'));
+  assert.ok(buildReportHtml([], [], 'All nights').includes('color-scheme: light'), 'light unless asked');
 });

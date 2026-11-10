@@ -1,6 +1,5 @@
 // Stats: the essentials of your sleep for a period: averages, a chart of hours asleep, the most
 // used tags, and night by night the times, tags and notes. Exportable on its own.
-import { requireOptionalNativeModule } from 'expo';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -15,8 +14,8 @@ import { useHoursMethod } from '@/lib/advanced';
 import { useHour24 } from '@/lib/clockFormat';
 import { useThemeName } from '@/lib/displayMode';
 import { cbtiShown, NO_SOURCES, resolveCbtiSources, withCbti, type CbtiSources, type StatsEntry } from '@/lib/cbti';
-import { shareReport } from '@/lib/printReport';
-import { buildReportHtml, reportName, type ReportGroup } from '@/lib/report';
+import { buildReportHtml, buildReportMarkdown, type ReportGroup } from '@/lib/report';
+import { setReportDraft } from '@/lib/reportDraft';
 import { formatAfterMidnight, formatAfterNoon, summarize } from '@/lib/stats';
 import { colors, radius, space, tints } from '@/lib/theme';
 import { loadHiddenStatsColumns, saveHiddenStatsColumns } from '@/lib/statsPrefs';
@@ -35,8 +34,6 @@ const PERIODS: { label: string; nights: number | null }[] = [
 const CHART_NIGHTS = 60; // more bars than this get too thin to read
 const CHART_HEIGHT = 120;
 const ROW_BATCH = 100; // rows a phone draws at a time in the night-by-night table
-// The PDF report (see printReport). Phones need an app build with expo-print in it: older ones skip the button.
-const REPORT = Platform.OS === 'web' || !!requireOptionalNativeModule('ExpoPrint');
 
 export default function StatsScreen() {
   useThemeName(); // redraw when the display changes (dark / light)
@@ -119,19 +116,17 @@ export default function StatsScreen() {
     }
   };
 
-  // A PDF of what's shown (the period, the ticked columns), to hand to a therapist or a doctor.
-  const [reporting, setReporting] = useState(false);
-  const getReport = async () => {
-    setReporting(true);
-    try {
-      const period = year ?? (nights ? `Last ${nights} nights` : 'All nights');
-      const columns = cols.map((c) => ({ label: c.label, right: c.right, long: LONG_TEXT.has(c.id), group: COLUMN_GROUP[c.id], text: (e: StatsEntry) => c.cell(e).text }));
-      await shareReport(buildReportHtml(shown, columns, period), reportName());
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setReporting(false);
-    }
+  // The report of what's shown (the period, the ticked columns), to hand to a therapist or a doctor:
+  // the Report screen previews it and saves it as a PDF, an .html file or Markdown.
+  const openReport = () => {
+    const period = year ?? (nights ? `Last ${nights} nights` : 'All nights');
+    const columns = cols.map((c) => ({ label: c.label, right: c.right, long: LONG_TEXT.has(c.id), group: COLUMN_GROUP[c.id], text: (e: StatsEntry) => c.cell(e).text }));
+    const nightsShown = shown;
+    setReportDraft({
+      html: (layout, theme) => buildReportHtml(nightsShown, columns, period, new Date(), layout, theme),
+      markdown: () => buildReportMarkdown(nightsShown, columns, period),
+    });
+    router.navigate('/report');
   };
 
   const s = summarize(nightsWithCbti);
@@ -142,16 +137,14 @@ export default function StatsScreen() {
     <View style={{ gap: space.md }}>
       {/* First on the page: what people come to Stats for most when seeing a therapist. */}
       {/* Phones: across the width. Wide screens: a normal-sized button with its line beside it. */}
-      {REPORT && (
-        <View style={wide ? { flexDirection: 'row', alignItems: 'center', gap: space.lg } : { gap: space.sm }}>
-          <View style={wide ? { width: 220 } : undefined}>
-            <Button title="Get report .pdf" busy={reporting} onPress={getReport} />
-          </View>
-          <View style={wide ? { flex: 1 } : undefined}>
-            <Muted>A page to print or share (with a therapist, say): your averages, the chart and the night-by-night table below, for the nights chosen here. Dreams stay out.</Muted>
-          </View>
+      <View style={wide ? { flexDirection: 'row', alignItems: 'center', gap: space.lg } : { gap: space.sm }}>
+        <View style={wide ? { width: 240 } : undefined}>
+          <Button title="Go to printable report" onPress={openReport} />
         </View>
-      )}
+        <View style={wide ? { flex: 1 } : undefined}>
+          <Muted>Your averages, the chart and the night-by-night table below, for the nights chosen here: see it, then save it as a PDF, a web page (.html) or Markdown (.md) to share (with a therapist, say). Dreams stay out.</Muted>
+        </View>
+      </View>
       {/* Dreams and Sheet belong to Stats. On phones this card is the way to them (the bottom bar
           has no room); wide screens also have them in the menu, and show the two side by side. */}
       <Card title="More from your journal">
@@ -206,7 +199,7 @@ export default function StatsScreen() {
           <Chip key={c.id} label={`${hidden.has(c.id) ? '☐' : '☑'} ${c.label}`} selected={!hidden.has(c.id)} onPress={() => toggle(c.id)} />
         ))}
       </View>
-      <Muted>Untick a column to hide it here and leave it out of the export{REPORT ? ' and the report' : ''}. The export has the nights shown.</Muted>
+      <Muted>Untick a column to hide it here and leave it out of the export and the report. The export has the nights shown.</Muted>
       <Text style={{ color: colors.muted, fontSize: 13 }}>
         Doing CBT-I (therapy for insomnia)?{' '}
         <Text style={{ color: colors.night, textDecorationLine: 'underline' }} accessibilityRole="button" onPress={() => setCbtiOpen(true)}>

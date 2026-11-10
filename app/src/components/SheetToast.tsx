@@ -83,15 +83,15 @@ export function SheetToast() {
     );
   }
   return (
-    <Animated.View {...anim.handlers} style={{ opacity: anim.opacity, transform: [{ translateX: anim.x }, { translateY: anim.y }] }}>
+    <Animated.View {...anim.handlers} style={{ maxWidth: '100%', opacity: anim.opacity, transform: [{ translateX: anim.x }, { translateY: anim.y }] }}>
       <Pressable onPress={() => anim.hide()} accessibilityRole="alert" accessibilityHint="Tap or swipe to dismiss"
         style={{
-          flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.md,
+          flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.sm, paddingHorizontal: space.md,
           backgroundColor: colors.card, borderColor: colors.success, borderWidth: 1, borderRadius: 12,
           boxShadow: '0 4px 14px rgba(0, 0, 0, 0.35)', elevation: 8,
         }}>
-        <Text style={{ color: colors.success, fontSize: 16 }}>↓</Text>
-        <Text style={{ color: colors.text, fontSize: 15, flex: 1 }}>{text}</Text>
+        <Text style={{ color: colors.success, fontSize: 14 }}>↓</Text>
+        <Text style={{ color: colors.text, fontSize: 14, flexShrink: 1 }}>{text}</Text>
       </Pressable>
     </Animated.View>
   );

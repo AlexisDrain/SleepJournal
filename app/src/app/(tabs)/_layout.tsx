@@ -8,7 +8,7 @@ import { useWide } from '@/lib/useLayout';
 // \uFE0E asks for the plain text glyph: without it iPhones draw ⚙ as an emoji, which ignores `color`.
 const icon = (glyph: string) => ({ color }: { color: ColorValue }) => <Text style={{ color, fontSize: 20 }}>{glyph + '\uFE0E'}</Text>;
 
-/** Dreams and Sheet are opened from the Stats page: a way back to it. */
+/** Dreams, Sheet and Report are opened from the Stats page: a way back to it. */
 const backToStats = () => (
   <Pressable onPress={() => router.navigate('/stats')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back to Stats"
     style={{ paddingHorizontal: space.lg }}>
@@ -56,6 +56,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="stats" options={{ title: 'Stats', tabBarIcon: icon('▥') }} />
       <Tabs.Screen name="dreams" options={{ title: 'Dreams', tabBarIcon: icon('☁'), ...fromStats }} />
       <Tabs.Screen name="sheet" options={{ title: 'Sheet', tabBarIcon: icon('▦'), ...fromStats }} />
+      {/* Report: only ever opened from Stats' Report button (it shows what's chosen there), so no tab. */}
+      <Tabs.Screen name="report" options={{ title: 'Report', headerLeft: backToStats, tabBarButton: () => null, tabBarItemStyle: { display: 'none' }, lazy: true }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: icon('⚙') }} />
     </Nav>
   );

@@ -1,7 +1,11 @@
 // Phones: the report becomes a PDF file, offered through the share sheet (email, Messages, Files…).
 // expo-print is loaded only when asked for, so an app built before it was added still opens.
+import { requireOptionalNativeModule } from 'expo';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+
+/** Whether this app build can make PDFs (older builds don't have expo-print in them). */
+export const CAN_MAKE_PDF = !!requireOptionalNativeModule('ExpoPrint');
 
 export async function shareReport(html: string, name: string): Promise<void> {
   let Print: typeof import('expo-print');

@@ -18,12 +18,12 @@ export function UpdateBar() {
     <View
       accessibilityRole="alert"
       style={{
-        flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.sm, paddingLeft: space.md,
+        flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.sm, paddingLeft: space.md, maxWidth: '100%',
         backgroundColor: colors.card, borderColor: colors.night, borderWidth: 1, borderRadius: 12,
         boxShadow: '0 4px 14px rgba(0, 0, 0, 0.35)', elevation: 8,
       }}
     >
-      <Text style={{ color: colors.text, fontSize: 15, flex: 1 }}>A new version is ready</Text>
+      <Text style={{ color: colors.text, fontSize: 15, flexShrink: 1 }}>A new version is ready</Text>
       <Button title="Later" small disabled={busy} color={colors.chip} textColor={colors.text} onPress={laterUpdate} />
       <Button title="Update app" small busy={busy} onPress={() => void update()} />
     </View>

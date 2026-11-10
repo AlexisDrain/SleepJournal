@@ -6,6 +6,8 @@ const home = process.env.APP ?? 'http://localhost:8095';
 const b = await connect();
 await b.viewport(393, 852, 3);
 await b.goto(`${home}/`, 5000);
+// The dev server's first build can take a while: wait for the welcome screen (or the app) to appear.
+for (let i = 0; i < 30 && !(await b.ev(`/Get started|Journal/.test(document.body.innerText)`)); i++) await b.sleep(1000);
 if (await b.ev(`document.body.innerText.includes('Get started')`)) {
   await b.tap('Get started', 1200);
   await b.tap('Start journaling', 2000);
