@@ -37,6 +37,20 @@ async function scrollTo(q) {
     await pause(16);
   }
 }
+// Scrolls in small steps until the thing is in the middle of the screen (or the page can't go
+// further), so the taps that follow happen mid-screen, not at its bottom edge.
+async function centerOn(q) {
+  let last = null, still = 0;
+  for (let i = 0; i < 80; i++) {
+    const r = await b.ev(`(() => { const e = __el(${JSON.stringify(q)}); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, off: b.top + b.height / 2 - innerHeight / 2, h: innerHeight }; })()`);
+    if (!r || Math.abs(r.off) < 30) return;
+    still = r.off === last ? still + 1 : 0;
+    if (still >= 4) return;
+    last = r.off;
+    await b.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: r.x, y: r.h * 0.6, deltaX: 0, deltaY: Math.sign(r.off) * 24 });
+    await pause(16);
+  }
+}
 async function tap(q, after = 700) {
   await scrollTo(q);
   await pause(250);
@@ -77,9 +91,13 @@ const scripts = {
     await tap('15m', 800);
     await pause(400);
     await tap('4', 800);
-    await tap('good dream', 900);
-    await pause(900);
+    await pause(400);
+    await wheel(26, 30); // on down to the bottom of the page, where the tags are
+    await pause(700);
+    await tap('good dream', 1300);
     await tap('Routines', 1600);
+    await centerOn('Drink water'); // the morning list in the middle, where the taps happen
+    await pause(300);
     await tap('Drink water', 450);
     await tap('Get some sunlight', 450);
     await tap('~Times woke in the night', 500);
@@ -89,7 +107,7 @@ const scripts = {
     await b.ev(`document.activeElement?.blur()`);
     await pause(2200);
   },
-  // 2. Stats: averages, the chart, night by night; then the dreams
+  // 2. Stats: averages, the chart, night by night (in the sheet's colors); then the printable report
   async stats() {
     await b.clock('2026-11-07T12:30:00');
     await b.goto(`${home}/stats`, 3500);
@@ -98,16 +116,18 @@ const scripts = {
     await pause(1200);
     await tap('All', 1300);
     await wheel(28, 22);
-    await pause(1600);
-    await wheel(30, 26);
     await pause(1500);
+    await wheel(30, 26);
+    await pause(1600);
     await tap('Show more columns to the right', 1300);
-    await pause(800);
+    await pause(500);
     await wheel(-60, 40);
     await pause(400);
-    await tap('~Dreams', 1800);
-    await tap('~Read a random dream', 2600);
-    await pause(800);
+    await tap('Go to printable report', 2400);
+    await wheel(30, 18, 220, 640); // down the report in the preview
+    await pause(900);
+    await tap('☾ Dark', 2200);
+    await pause(600);
   },
   // 3. The spreadsheet, the Google Sheet, and the CBT-I questions in Settings
   // (no light mode here: the status bar laid over the video is white)

@@ -12,14 +12,17 @@ upload. All the nights, notes and dreams shown are made up (see `source/make-dem
 
 You can change this one any time, without sending a new version for review.
 
+Alexis: A free, open-source sleep diary that takes about a minute a day. Your journal stays on your device: no account, no ads, no tracking.
 ```
 Two quick check-ins a day: log your nights in a few taps, watch your patterns over the weeks, and share a clear report with your therapist. Free, with no account.
 ```
 
 ### Subtitle (30 characters at most)
 
-Shown under the app's name. It's in the App Information section, not the version page. Three
-options to choose from:
+Shown under the app's name. It's in the App Information section, not the version page.
+**Chosen: option 5, "Quick diary, morning and night".** The others are kept for reference.
+
+Alexis: Quick diary, morning and night
 
 **Option 1 (the current one), 29 / 30:**
 
@@ -41,7 +44,41 @@ Keywords (the subtitle is searched already) and use the room for another word:
 Simple sleep diary for CBT-I
 ```
 
-### Description (2,277 / 4,000 characters)
+**Option 4, 29 / 30.** Says how often. "sleep" is already in the name (searched already), so
+that word adds nothing to search:
+
+```
+Quick sleep diary twice a day
+```
+
+**Option 5, 30 / 30 (chosen).** Option 4 without the repeated "sleep", adding "morning" and "night"
+to search instead:
+
+```
+✅Quick diary, morning and night
+```
+
+### Description (Alexis's: 898 / 4,000 characters; the long one below: 2,350)
+
+"My psychiatrist said that most sleep apps are bloated, so I made a simple, no frills solution. 1-Minute Sleep Journal is a"
+
+Alexis:
+A free, open-source sleep diary that takes about a minute a day. Note when you went to bed, how you slept, and tick off your routines. Your journal stays on your device: no account, no ads, no tracking.
+
+How to use:
+- At bedtime: Note when you got in bed and started trying to sleep.
+- In the morning: Say how rested you feel, how long it took to fall asleep, and when you woke up.
+
+You also have an optional Routines tab. Think of it as a daily to-do checklist before going to bed, when waking up, and during the day. You can add your custom routines to it.
+
+See your stats and a printable report to share with your therapist (PDF, web page or Markdown). Doing CBT-I? Add its two morning questions in one tap.
+
+You can sync your data between devices using your own Google Sheet (optional).
+
+Preview music: "Inspired" Kevin MacLeod (incompetech.com)
+Licensed under Creative Commons: By Attribution 4.0 License
+http://creativecommons.org/licenses/by/4.0/
+
 
 ```
 A sleep diary you'll actually keep. Two quick check-ins a day: one before bed, one when you wake up. Over the weeks, you see how you really sleep, and what helps.
@@ -53,7 +90,7 @@ SEE YOUR PATTERNS
 Stats shows your averages, a chart of hours asleep night by night, and the tags that come up most (caffeine, exercise, stress, or your own). Look at the last 7, 30 or 90 nights, a year, or everything.
 
 READY FOR YOUR THERAPIST
-Night by night is a clean table of every night, and you choose its columns. Share it as a PDF report with your averages, the chart and sleep efficiency, or export it as an .xlsx or .csv. Your dreams stay out of the report.
+Night by night is a clean table of every night, and you choose its columns. See a printable report with your averages, the chart and that table, in light or dark, and save it as a PDF, a web page or Markdown to share. Or export the nights as an .xlsx or .csv. Your dreams stay out of the report.
 
 DOING CBT-I?
 Therapy for insomnia (CBT-I) asks how many times you woke in the night and how long you were awake. Add its two questions to your morning in one tap: Stats shows them night by night, and hours asleep leave out the time awake.
@@ -82,13 +119,15 @@ Licensed under Creative Commons: By Attribution 4.0 License
 http://creativecommons.org/licenses/by/4.0/
 ```
 
-### Keywords (97 / 100 characters)
+### Keywords (100 / 100 characters)
 
-Commas, no spaces. The app's name and subtitle are already searched, so their words aren't repeated
-here.
+Commas, no spaces. The app's name and subtitle (1-Minute Sleep Journal, Quick diary, morning and
+night) are already searched, so their words aren't repeated here. Since the subtitle changed:
+"rest" is back (the old subtitle had it), "cbti" is added (people type it without the hyphen too),
+and "report" made room for them.
 
 ```
-insomnia,cbt-i,tracker,log,dreams,bedtime,routine,habits,patterns,wake,therapy,nap,report,offline
+insomnia,cbt-i,cbti,tracker,log,dreams,bedtime,routine,habits,patterns,wake,therapy,nap,rest,offline
 ```
 
 ### Support URL
@@ -126,7 +165,7 @@ No account or sign-in is needed: everything is stored on the device. Syncing wit
 | Header Asset | `header/header-5244x2950.png` (or `header-3840x1646.png`) | 5244 × 2950, 3840 × 1646 |
 | Search Results Asset | `search-results/search-5244x2950.png` (or the 3840 × 2560 / 1920 × 1280 ones) | all three supported sizes |
 | iPhone screenshots (6.1" / 6.3") | `screenshots/iphone/01…10` (with captions), or `screenshots/iphone-plain/` | 1179 × 2556 |
-| iPhone app previews | `app-previews/1-checkin`, `2-stats`, `3-sheet` | 886 × 1920, 30 fps, 20–25 s |
+| iPhone app previews | `app-previews/1-checkin`, `2-stats` (`3-sheet` is kept but not used) | 886 × 1920, 30 fps, 20–28 s |
 
 - **Screenshots:** upload them in number order. The first three are the ones most people see in
   search results. Use either the captioned set or the plain one, not a mix.
@@ -145,9 +184,12 @@ No account or sign-in is needed: everything is stored on the device. Syncing wit
   it's credited, so each preview ends on a 3-second card with the credit, and the Description
   carries it too. Previews start muted on the App Store; people tap for sound. After uploading,
   App Store Connect asks for a poster frame: pick one from the app, not the credit card.
-  1. `1-checkin`: the morning check-in, then the morning routine with the CBT-I questions.
-  2. `2-stats`: the averages, the chart, night by night, then the dreams.
-  3. `3-sheet`: the spreadsheet, the Google Sheet card, and the CBT-I questions in Settings.
+  1. `1-checkin`: the morning check-in, down to the bottom of the page, then the morning routine
+     (scrolled to the middle of the screen) with the CBT-I questions.
+  2. `2-stats`: the averages, the chart, night by night in the sheet's colors, then the printable
+     report: its preview, and in dark.
+  3. `3-sheet` (**not used**: too much at once, and niche features): the spreadsheet, the Google
+     Sheet card, and the CBT-I questions in Settings. Kept in case.
 - **iPad:** not needed. The app is iPhone-only (`supportsTablet: false` in `app/app.json`), so App
   Store Connect shouldn't ask for iPad screenshots.
 

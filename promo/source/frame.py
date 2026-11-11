@@ -14,7 +14,7 @@ bold = lambda pt: ImageFont.truetype(F + 'segoeuib.ttf', int(pt * S))
 CAPTIONS = {
     '01-bedtime': ('A sleep diary', 'in a minute a day'),
     '02-stats': ('Watch your sleep', 'get better'),
-    '03-nights': ('Night by night,', 'ready for your therapist'),
+    '03-nights': ('Night by night spreadsheet,', 'ready for your therapist'),
     '04-cbti': ('Doing CBT-I?', 'Its questions are built in'),
     '05-routines': ('Routines for bedtime', 'and the morning'),
     '06-dreams': ('Write down your dreams', 'and read them back'),
