@@ -3,7 +3,7 @@
 # ending on out/endcard.png (the music credit; make it with python endcard.py).
 # (setsar=1: square pixels, or players squash the picture. out_range=tv: Windows Media Player refuses "full range" video.)
 name=$1
-music=${MUSIC:-../../trailer/Inspired.mp3}
+music=${MUSIC:-../trailer/Inspired.mp3}
 mkdir -p out/previews
 # 1. The app recording, with the status bar and home bar.
 ffmpeg -y -loglevel error -f concat -safe 0 -i "frames/$name/list.txt" -i preview-overlay.png \

@@ -180,7 +180,7 @@ No account or sign-in is needed: everything is stored on the device. Syncing wit
   Social preview), `banner-1270x760.png` for Product Hunt's gallery, and two big ones for a website.
   Made from `source/banner.html` with `node art.mjs --banner`.
 - **App previews:** H.264 .mp4 files with music: "Inspired" by Kevin MacLeod
-  (`trailer/Inspired.mp3`). Its licence (CC BY 4.0) lets anyone use it, ads included, as long as
+  (`promo/trailer/Inspired.mp3`). Its licence (CC BY 4.0) lets anyone use it, ads included, as long as
   it's credited, so each preview ends on a 3-second card with the credit, and the Description
   carries it too. Previews start muted on the App Store; people tap for sound. After uploading,
   App Store Connect asks for a poster frame: pick one from the app, not the credit card.
@@ -225,7 +225,7 @@ and ffmpeg. Everything runs in `source/`.
    (pictures too big for one capture are taken in two halves).
 6. Previews: from a fresh profile (steps 2 and 3), `python overlay.py` and `python endcard.py`, then
    `node rec.mjs checkin`, `stats` and `sheet`, then `sh encode.sh checkin` (and so on).
-   `encode.sh` reads the music from `trailer/Inspired.mp3`, or from the file named in `MUSIC`.
+   `encode.sh` reads the music from `promo/trailer/Inspired.mp3`, or from the file named in `MUSIC`.
    Check each one before using it: `ffmpeg -i out/previews/checkin.mp4 -vf "fps=2,scale=221:480,tile=11x4" -frames:v 1 check.png`.
 
 The scripts set the page's clock to a fixed day (Nov 6–7, 2026), so the shots always show the same
