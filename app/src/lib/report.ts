@@ -17,8 +17,13 @@ export interface ReportColumn<E extends Entry = Entry> {
   long?: boolean;
   /** Its color; general (green) if not given. */
   group?: ReportGroup;
+  /** A CBT-I question: marked ★, with a line under the table saying what that means. */
+  cbti?: boolean;
   text: (e: E) => string;
 }
+
+/** What the ★ means, under the table. */
+const CBTI_NOTE = '★ The two questions from the CBT-I sleep diary (therapy for insomnia). Hours asleep leave out the time awake.';
 
 /** Light (for paper) or dark (like the app at night). */
 export type ReportTheme = 'light' | 'dark';
@@ -126,7 +131,8 @@ export function buildReportHtml<E extends Entry>(
 
   const groupOf = (c: ReportColumn<E>) => c.group ?? 'other';
   const head = ['<th class="g-other">Night</th>',
-    ...columns.map((c) => `<th class="${[`g-${groupOf(c)}`, c.right && 'num'].filter(Boolean).join(' ')}">${esc(c.label)}</th>`)].join('');
+    ...columns.map((c) => `<th class="${[`g-${groupOf(c)}`, c.right && 'num'].filter(Boolean).join(' ')}">${c.cbti ? '<span class="star">★</span> ' : ''}${esc(c.label)}</th>`)].join('');
+  const cbtiNote = columns.some((c) => c.cbti) ? `<p class="note cbti">${esc(CBTI_NOTE)}</p>` : '';
   const body = entries.map((e) => {
     const cells = columns.map((c) => `<td class="${[`g-${groupOf(c)}`, c.right && 'num', c.long && 'long'].filter(Boolean).join(' ')}">${esc(c.text(e) || '—')}</td>`);
     return `<tr><td class="g-other night">${esc(nightCell(e.nightOf))}</td>${cells.join('')}</tr>`;
@@ -171,6 +177,8 @@ ${layout === 'print' ? '  @page { size: landscape; margin: 12mm; }' : ''}
   tr { break-inside: avoid; }
 ${groupCss}
   .num { text-align: right; }
+  .star { color: ${P.amber}; }
+  .note.cbti { margin-top: 6px; }
   .night { white-space: nowrap; font-weight: 600; }
   .long { min-width: 140px; white-space: pre-wrap; }
   footer { margin-top: 14px; font-size: 8pt; color: ${P.footer}; }
@@ -185,7 +193,7 @@ ${chart}
 <h2>Night by night</h2>
 ${entries.length ? `<div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>
 ${body}
-</tbody></table></div>` : '<p>No nights in this period.</p>'}
+</tbody></table></div>${cbtiNote}` : '<p>No nights in this period.</p>'}
 ${tags}
 <footer>Made with 1-Minute Sleep Journal on ${esc(longDate(toDateString(now)))}. A night runs from the evening to the next afternoon and is named by the day it starts.</footer>
 </body></html>`;
@@ -219,9 +227,10 @@ export function buildReportMarkdown<E extends Entry>(entries: E[], columns: Repo
     '',
   ];
   if (entries.length) {
-    lines.push(row(['Night', ...columns.map((c) => c.label)]));
+    lines.push(row(['Night', ...columns.map((c) => (c.cbti ? `★ ${c.label}` : c.label))]));
     lines.push(row(['---', ...columns.map((c) => (c.right ? '---:' : '---'))]));
     for (const e of entries) lines.push(row([nightCell(e.nightOf), ...columns.map((c) => c.text(e))]));
+    if (columns.some((c) => c.cbti)) lines.push('', `*${CBTI_NOTE}*`);
   } else lines.push('No nights in this period.');
   if (s.tags.length) lines.push('', '## Tags', '', s.tags.map((t) => `${t.name} ×${t.count}`).join(' · '));
   lines.push('', `*Made with 1-Minute Sleep Journal on ${longDate(toDateString(now))}. A night runs from the evening to the next afternoon and is named by the day it starts.*`, '');

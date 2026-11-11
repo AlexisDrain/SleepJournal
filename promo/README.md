@@ -227,6 +227,10 @@ and ffmpeg. Everything runs in `source/`.
    `node rec.mjs checkin`, `stats` and `sheet`, then `sh encode.sh checkin` (and so on).
    `encode.sh` reads the music from `promo/trailer/Inspired.mp3`, or from the file named in `MUSIC`.
    Check each one before using it: `ffmpeg -i out/previews/checkin.mp4 -vf "fps=2,scale=221:480,tile=11x4" -frames:v 1 check.png`.
+7. Trailer video (`trailer/sleep-journal-trailer.mp4`, 1920 × 1080, 49.5 s, for Product Hunt,
+   GitHub or a website; too long for an App Store preview): serve `promo/trailer`
+   (`python -m http.server 8097 --bind 127.0.0.1` there), then in `source/` run `node trailer.mjs`
+   and `sh trailer.sh`. It records the trailer page from Restart to its end and adds the music.
 
 The scripts set the page's clock to a fixed day (Nov 6–7, 2026), so the shots always show the same
 nights whatever today's date is. They read from and write to `raw/`, `out/` and `frames/` next to

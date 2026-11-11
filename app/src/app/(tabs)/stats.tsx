@@ -64,9 +64,17 @@ export default function StatsScreen() {
   const [cbtiOpen, setCbtiOpen] = useState(false);
   const itemOf = (uid: string | null) => (uid ? items.find((i) => i.uid === uid) : undefined);
   const nightsWithCbti = withCbti(entries, items, sources);
+  // The CBT-I questions under their own names (as in Routines, renamed or not) and marked ★, here and
+  // in the report alike, so a therapist knows them at once; a little wider on phones for the longer
+  // names. ("Woke in night" from a wake count imported from another diary stays as it is.)
+  const cbtiItem = (id: string) => (id === 'wakes' ? itemOf(sources.wakes) : id === 'awake' ? itemOf(sources.awake) : undefined);
+  const named = (c: Col): Col => {
+    const item = cbtiItem(c.id);
+    return item ? { ...c, label: item.label, cbti: true, width: Math.max(c.width, 140), flex: c.flex + 0.5 } : c;
+  };
   const available = COLUMNS.filter((c) =>
     c.id === 'wakes' ? !!itemOf(sources.wakes) || entries.some((e) => e.wakeCount !== null)
-      : c.id === 'awake' ? !!itemOf(sources.awake) : true);
+      : c.id === 'awake' ? !!itemOf(sources.awake) : true).map(named);
   // The two CBT-I columns export as the routine items they come from.
   const exportsOf = (c: Col) =>
     c.id === 'wakes' && itemOf(sources.wakes) ? [`Morning: ${itemOf(sources.wakes)!.label}`]
@@ -120,7 +128,7 @@ export default function StatsScreen() {
   // the Report screen previews it and saves it as a PDF, an .html file or Markdown.
   const openReport = () => {
     const period = year ?? (nights ? `Last ${nights} nights` : 'All nights');
-    const columns = cols.map((c) => ({ label: c.label, right: c.right, long: LONG_TEXT.has(c.id), group: COLUMN_GROUP[c.id], text: (e: StatsEntry) => c.cell(e).text }));
+    const columns = cols.map((c) => ({ label: c.label, cbti: c.cbti, right: c.right, long: LONG_TEXT.has(c.id), group: COLUMN_GROUP[c.id], text: (e: StatsEntry) => c.cell(e).text }));
     const nightsShown = shown;
     setReportDraft({
       html: (layout, theme) => buildReportHtml(nightsShown, columns, period, new Date(), layout, theme),
@@ -196,7 +204,7 @@ export default function StatsScreen() {
       {/* Each column on or off: on screen and in the export alike. */}
       <View style={styles.chips}>
         {available.map((c) => (
-          <Chip key={c.id} label={`${hidden.has(c.id) ? '☐' : '☑'} ${c.label}`} selected={!hidden.has(c.id)} onPress={() => toggle(c.id)} />
+          <Chip key={c.id} label={`${hidden.has(c.id) ? '☐' : '☑'} ${c.cbti ? '★ ' : ''}${c.label}`} selected={!hidden.has(c.id)} onPress={() => toggle(c.id)} />
         ))}
       </View>
       <Muted>Untick a column to hide it here and leave it out of the export and the report. The export has the nights shown.</Muted>
@@ -221,7 +229,8 @@ export default function StatsScreen() {
         // Phones draw the whole table in the header (it scrolls sideways); wide screens list the rows.
         data={wide ? shown : []}
         keyExtractor={(e) => e.nightOf}
-        ListHeaderComponent={<View style={{ marginBottom: space.md }}>{header}</View>}
+        // Wide, with nights: the table's header ends this part and its rows follow right under it.
+        ListHeaderComponent={<View style={{ marginBottom: wide && shown.length ? 0 : space.md }}>{header}</View>}
         ListEmptyComponent={shown.length ? undefined : <Muted>{entries.length ? 'No times, tags or notes in this period yet.' : 'No nights in this period yet.'}</Muted>}
         renderItem={({ item, index }) => <NightRow e={item} cols={cols} odd={index % 2 === 1} last={index === shown.length - 1} onRead={setReading} />}
       />
@@ -294,6 +303,8 @@ interface Col {
   /** Width on phones (px). */
   width: number;
   right?: boolean;
+  /** A CBT-I question: marked ★ (see `named`). */
+  cbti?: boolean;
   /** The export columns this one stands for. */
   exports: string[];
   cell: (e: StatsEntry) => { text: string; color?: string; bold?: boolean };
@@ -350,15 +361,17 @@ const cellBox = (id: string, header: boolean) => ({
 });
 
 function HeaderRow({ cols, fixed }: { cols: Col[]; fixed: boolean }) {
-  const h = (key: string, label: string, size: object, right?: boolean) => (
+  const h = (key: string, label: string, size: object, right?: boolean, cbti?: boolean) => (
     <View key={key} style={[size, cellBox(key, true)]}>
-      <Text style={[styles.cardTitle, { fontSize: 11, color: colors.text, textAlign: right ? 'right' : 'left' }]}>{label}</Text>
+      <Text style={[styles.cardTitle, { fontSize: 11, color: colors.text, textAlign: right ? 'right' : 'left' }]}>
+        {cbti && <Text style={{ color: colors.morning }}>★ </Text>}{label}
+      </Text>
     </View>
   );
   return (
     <View style={{ flexDirection: 'row', borderTopLeftRadius: radius, borderTopRightRadius: radius, overflow: 'hidden' }}>
       {h('night', 'Night', sized(NIGHT_COL, fixed))}
-      {cols.map((c) => h(c.id, c.label, sized(c, fixed), c.right))}
+      {cols.map((c) => h(c.id, c.label, sized(c, fixed), c.right, c.cbti))}
     </View>
   );
 }

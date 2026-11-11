@@ -66,3 +66,19 @@ test('the dark report: the app\'s dark colors, the sheet colors as in its Sheet 
   assert.ok(dark.includes('th.g-bedtime { background: #2a3170; }'));
   assert.ok(buildReportHtml([], [], 'All nights').includes('color-scheme: light'), 'light unless asked');
 });
+
+test('the CBT-I questions: by their own names, marked ★, with a line saying what the ★ means', () => {
+  const cols: ReportColumn[] = [
+    { label: 'Times woke in the night', cbti: true, right: true, group: 'morning', text: () => '2' },
+    { label: 'Notes', text: () => '' },
+  ];
+  const html = buildReportHtml([], cols, 'All nights');
+  const htmlWith = buildReportHtml([{ nightOf: '2026-10-07', tags: [], hoursAsleep: null } as never], cols, 'All nights');
+  assert.ok(htmlWith.includes('<span class="star">★</span> Times woke in the night</th>'));
+  assert.ok(htmlWith.includes('The two questions from the CBT-I sleep diary'));
+  assert.ok(!html.includes('CBT-I sleep diary'), 'no table, no note');
+  const md = buildReportMarkdown([{ nightOf: '2026-10-07', tags: [] } as never], cols, 'All nights');
+  assert.ok(md.includes('| Night | ★ Times woke in the night | Notes |') && md.includes('*★ The two questions from the CBT-I sleep diary'));
+  const plain = buildReportMarkdown([{ nightOf: '2026-10-07', tags: [] } as never], [{ label: 'Notes', text: () => '' }], 'All nights');
+  assert.ok(!plain.includes('★'), 'without the CBT-I columns: no ★, no note');
+});
