@@ -144,6 +144,21 @@ The web version of the app.
 https://sleep-journal.expo.app
 ```
 
+### Privacy Policy URL
+
+Required for every app (App Information → Privacy Policy URL). It's `PRIVACY.md` in the repo, so
+commit and push it first, or this link shows a 404.
+
+```
+https://github.com/AlexisDrain/SleepJournal/blob/master/PRIVACY.md
+```
+
+### App Privacy
+
+In App Store Connect → App Privacy, answer **"No, we do not collect data from this app"** ("Data Not
+Collected"). The journal stays on the device; Google Sheet sync goes from the device to the person's
+own sheet, not to the developer. See `PRIVACY.md`.
+
 ### Copyright
 
 Apple adds the © itself.

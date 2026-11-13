@@ -57,7 +57,7 @@ Publishing your own copy? These point at this project, so change them first:
 
 ```bash
 cd app
-npm run release        # new build number, then web (EAS Hosting) + phone (EAS Update, preview channel)
+npm run release        # new build number, then web (EAS Hosting) + phone (EAS Update: preview + production channels)
 ```
 
 `npm run release:web` publishes only the web version (new build number); `npm run release:phone`
@@ -81,8 +81,8 @@ release tagged `android-<versionCode>`, e.g. `android-12`. Installed APKs check 
 once a day and offer it if the number is higher. Release a new APK only for native changes; everything
 else reaches them as an update.
 
-Play builds use the `production` update channel; the release script publishes to `preview`, so add
-`production` to it before Play testers rely on updates. The first `eas build` asks for an Android
+App Store, TestFlight and APK builds use the `production` update channel and Expo Go uses `preview`;
+the release script publishes to both. The first `eas build` asks for an Android
 package name like `io.github.<your-handle>.sleepjournal`.
 
 ## Privacy & security notes
