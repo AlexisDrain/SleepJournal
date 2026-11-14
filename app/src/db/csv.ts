@@ -6,6 +6,7 @@
 // Times are written as the wall clock you saw ("11:30 PM") and put back on the right day on
 // import using the night-of rule: bedtime PM → that evening, AM → after midnight; morning → next day.
 import * as DocumentPicker from 'expo-document-picker';
+import { Platform } from 'react-native';
 import { addDays, toDateString, toLocalIso, weekdayOf } from '@/lib/time';
 import type { Entry, EntryPatch, Phase, RoutineItem, RoutinePhase, RoutineValue } from '@/lib/types';
 import { readPickedBytes, readPickedText, shareFile } from './files';
@@ -15,6 +16,7 @@ import { transaction } from './transaction';
 import { advancedReady } from '@/lib/advanced';
 import { clockFormatReady, formatTime } from '@/lib/clockFormat';
 import { formatSheetDate, getDateStyle, localePrefsReady } from '@/lib/localePrefs';
+import { mergeRoutine, type SheetRoutineItem } from './sync';
 
 const PHASE_PREFIX: Record<RoutinePhase, string> = { bedtime: 'Bedtime: ', morning: 'Morning: ', anytime: 'Anytime: ' };
 // "Anytime" items have no check-in of their own: they are colored like the general columns. They
@@ -466,66 +468,166 @@ export function rowToPatch(header: string[], row: string[], nightOf: string, rou
   };
 }
 
-export async function importCsvText(text: string): Promise<ImportResult> {
-  return importRows(parseCsv(text.replace(/^﻿/, '')));
+/** The Google Sheet's "Routine items" tab (Id, Check-in, Item, Records, Order, Hidden, Updated). */
+const isRoutineTab = (header?: string[]) => !!header && ['Check-in', 'Item', 'Order'].every((h) => header.some((x) => x.trim() === h));
+
+/** That tab's rows, as the sync reads them from the sheet's script (routineItem_ in the .gs). */
+export function routineItemsFrom(rows: string[][]): SheetRoutineItem[] {
+  const header = rows[0].map((h) => h.trim());
+  const at = (r: string[], name: string) => (r[header.indexOf(name)] ?? '').trim();
+  const kinds: RoutineItem['kind'][] = ['check', 'time', 'number', 'text'];
+  return rows.slice(1).flatMap((r) => {
+    const phase = at(r, 'Check-in').toLowerCase() as RoutinePhase;
+    const label = at(r, 'Item');
+    if (!label || !(phase in PHASE_PREFIX)) return [];
+    const kind = at(r, 'Records').toLowerCase() as RoutineItem['kind'];
+    return [{
+      // A row typed in by hand has no id yet: give it one, as the sheet's script would.
+      id: at(r, 'Id') || Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
+      phase, label,
+      kind: kinds.includes(kind) ? kind : 'check',
+      order: Number(at(r, 'Order')) || 0,
+      hidden: /^(yes|true)$/i.test(at(r, 'Hidden')),
+      updated: at(r, 'Updated'),
+    }];
+  });
 }
+
+/** Called as an import goes: rows looked at so far, out of all of them. (0, 0) = still reading the file. */
+export type ImportProgress = (done: number, total: number) => void;
 
 /**
- * An .xlsx file: this app's export, or a Google Sheet / Excel file. Every tab with a "Night of"
- * column is read (a synced Google Sheet has one per year); other tabs are left out.
+ * Nights saved per transaction. Phones lock the database for a transaction, and each night is several
+ * calls to it: one transaction for a whole year of nights kept the other tabs waiting (they read the
+ * database) and showed nothing until the end. In small batches, the tabs and the screen keep going
+ * between them, the import can say how far it got, and if the app is closed partway, the nights
+ * already saved stay (importing again skips them and carries on).
  */
-export async function importXlsx(bytes: Uint8Array): Promise<ImportResult> {
-  const sheets = readXlsx(bytes).filter((s) => s.rows[0]?.some((h) => h.trim() === REQUIRED_COLUMN));
-  if (sheets.length === 0) return importRows(readXlsx(bytes)[0]?.rows ?? []); // explains what's missing
-  const total: ImportResult = { imported: 0, skipped: 0, invalid: 0, empty: 0 };
-  for (const s of sheets) {
-    const r = await importRows(s.rows);
-    for (const k of Object.keys(total) as (keyof ImportResult)[]) total[k] += r[k];
-  }
-  return total;
+const IMPORT_BATCH = 25;
+
+export async function importCsvText(text: string, onProgress?: ImportProgress): Promise<ImportResult> {
+  return importSheets([parseCsv(text.replace(/^﻿/, ''))], onProgress);
 }
 
-async function importRows(rows: string[][]): Promise<ImportResult> {
-  if (rows.length === 0) throw new Error('The file is empty.');
-  const header = rows[0].map((h) => h.trim());
-  if (!header.includes('Night of')) throw new Error('This doesn\'t look like a 1-Minute Sleep Journal export (no "Night of" column).');
-  const body = rows.slice(1);
+export async function importXlsx(bytes: Uint8Array, onProgress?: ImportProgress): Promise<ImportResult> {
+  const all = readXlsx(bytes);
+  const sheets = all.filter((s) => s.rows[0]?.some((h) => h.trim() === REQUIRED_COLUMN));
+  // A Google Sheet keeps the routine list, in order, in its "Routine items" tab: bring that in first,
+  // as connecting the sheet would, so the items keep its order (and kinds, and hidden ones), and the
+  // nights' columns land on them.
+  const routineTab = all.find((s) => isRoutineTab(s.rows[0]));
+  if (sheets.length && routineTab) await mergeRoutine(routineItemsFrom(routineTab.rows));
+  // None with a "Night of" column: the first one, to explain what's missing.
+  return importSheets(sheets.length ? sheets.map((s) => s.rows) : [all[0]?.rows ?? []], onProgress);
+}
+
+async function importSheets(sheets: string[][][], onProgress?: ImportProgress): Promise<ImportResult> {
+  // Every sheet checked before anything is written: a wrong file changes nothing.
+  const plans = sheets.map((rows) => {
+    if (rows.length === 0) throw new Error('The file is empty.');
+    const header = rows[0].map((h) => h.trim());
+    if (!header.includes('Night of')) throw new Error(`This doesn't look like a 1-Minute Sleep Journal export (no "Night of" column).`);
+    return { header, body: rows.slice(1) };
+  });
+  const total = plans.reduce((n, p) => n + p.body.length, 0);
 
   const db = await getDb();
   const existing = new Set(
     (await db.getAllAsync<{ night_of: string }>('SELECT night_of FROM entries')).map((r) => r.night_of),
   );
-  const routineCols = await routineColumnsFor(header, body);
-
   const result: ImportResult = { imported: 0, skipped: 0, invalid: 0, empty: 0 };
-  await transaction(db, async (tx) => {
-    for (const r of body) {
-      const nightOf = nightOfRow(header, r);
-      if (!nightOf) {
-        result.invalid++;
-        continue;
-      }
-      if (isEmptyRow(header, r)) {
-        result.empty++;
-        continue;
-      }
-      if (existing.has(nightOf)) {
-        result.skipped++;
-        continue;
-      }
-      await writeEntry(tx, nightOf, rowToPatch(header, r, nightOf, routineCols));
-      existing.add(nightOf);
-      result.imported++;
+  let done = 0;
+  onProgress?.(0, total);
+  for (const { header, body } of plans) {
+    const routineCols = await routineColumnsFor(header, body);
+    for (let i = 0; i < body.length; i += IMPORT_BATCH) {
+      const batch = body.slice(i, i + IMPORT_BATCH);
+      await transaction(db, async (tx) => {
+        for (const r of batch) {
+          const nightOf = nightOfRow(header, r);
+          if (!nightOf) {
+            result.invalid++;
+            continue;
+          }
+          if (isEmptyRow(header, r)) {
+            result.empty++;
+            continue;
+          }
+          if (existing.has(nightOf)) {
+            result.skipped++;
+            continue;
+          }
+          await writeEntry(tx, nightOf, rowToPatch(header, r, nightOf, routineCols));
+          existing.add(nightOf);
+          result.imported++;
+        }
+      });
+      done += batch.length;
+      onProgress?.(done, total);
+      await new Promise((resolve) => setTimeout(resolve, 0)); // the screen draws, other tabs read
     }
-  });
+  }
   return result;
 }
 
-/** Lets the user pick a .csv or .xlsx (Files, iCloud Drive, Google Drive…) and imports it. null = cancelled. */
-export async function pickAndImport(): Promise<ImportResult | null> {
-  const picked = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
-  if (picked.canceled) return null;
-  const file = picked.assets[0];
-  const xlsx = /\.xlsx$/i.test(file.name ?? '') || file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  return xlsx ? importXlsx(await readPickedBytes(file)) : importCsvText(await readPickedText(file));
+/** How to make a real spreadsheet file from a Google Sheet, on this device. */
+const SAVE_AS_EXCEL = Platform.OS === 'ios'
+  ? 'save a copy as an Excel file (in the Google Sheets app: ⋯ → Share & export → Send a copy → Excel, then Save to Files)'
+  : 'save a copy as an Excel file (in the Google Sheets app: ⋮ → Share & export → Save as → Excel (.xlsx))';
+
+/**
+ * A Google Sheet picked in Drive isn't a file: it's a Google document with nothing to read until it's
+ * converted, which the picker doesn't do. Say how to bring it in instead.
+ */
+export const GOOGLE_FILE_MESSAGE =
+  "That's a Google Sheet, which isn't a file the app can open. Two ways to bring it in: connect it in " +
+  `Settings → Google Sheet (all its nights come in, and stay in sync), or ${SAVE_AS_EXCEL} and import that file.`;
+
+/**
+ * Google's own documents (Sheets, Docs…): by their type (Android), or by the shortcut file Google Drive
+ * gives elsewhere, which only links to the document online (Sleep Journal.gsheet).
+ */
+export const isGoogleFile = (mimeType?: string | null, name?: string | null) =>
+  (!!mimeType && mimeType.startsWith('application/vnd.google-apps')) || /\.g(sheet|doc|slides|form|draw|site)$/i.test(name ?? '');
+
+export async function pickAndImport(onProgress?: ImportProgress): Promise<ImportResult | null> {
+  const file = await pickFile();
+  if (!file) return null;
+  if (isGoogleFile(file.mimeType, file.name)) throw new Error(GOOGLE_FILE_MESSAGE);
+  // Reading a big file takes a while on a phone, before any night is saved: say so first, and let
+  // the screen draw that before the work starts.
+  onProgress?.(0, 0);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  // By what the file is, not its name or type: a download can be named or typed wrongly.
+  const bytes = await readPickedBytes(file);
+  const kind = fileKind(bytes);
+  if (kind === 'xlsx') return importXlsx(bytes, onProgress);
+  if (kind === 'pdf') throw new Error(PDF_MESSAGE);
+  return importCsvText(await readPickedText(file), onProgress);
+}
+
+/** An .xlsx is a zip ("PK"), a PDF starts "%PDF"; anything else is read as CSV text. */
+export function fileKind(bytes: Uint8Array): 'xlsx' | 'pdf' | 'text' {
+  const starts = (s: string) => s.split('').every((c, i) => bytes[i] === c.charCodeAt(0));
+  return starts('PK') ? 'xlsx' : starts('%PDF') ? 'pdf' : 'text';
+}
+
+export const PDF_MESSAGE =
+  "That's a PDF, which shows a sheet but doesn't hold its data. Import a .csv or .xlsx instead: for a Google " +
+  `Sheet, connect it in Settings → Google Sheet, or ${Platform.OS === 'android'
+    ? 'in the Google Sheets app tap ⋮ → Share & export → Save as → Excel (.xlsx)'
+    : 'save a copy as an Excel file'} and import that.`;
+
+/** The file to import, or null if cancelled. */
+async function pickFile(): Promise<DocumentPicker.DocumentPickerAsset | null> {
+  let picked: DocumentPicker.DocumentPickerResult;
+  try {
+    picked = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+  } catch (e) {
+    // Android can't copy a Google document (it has no file to copy): the picker fails here.
+    throw new Error(`${(e as Error).message}
+
+If you picked a Google Sheet: ${GOOGLE_FILE_MESSAGE}`);
+  }
+  return picked.canceled ? null : picked.assets[0];
 }

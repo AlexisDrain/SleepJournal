@@ -221,7 +221,7 @@ export async function disconnect() {
 // ---------- the routine list ----------
 
 /** A routine item as the sheet's "Routine items" tab keeps it. */
-interface SheetRoutineItem {
+export interface SheetRoutineItem {
   id: string; // RoutineItem.uid
   phase: RoutinePhase;
   label: string;
@@ -259,7 +259,7 @@ async function syncRoutine(conn: Connection): Promise<boolean> {
 }
 
 /** The sheet's routine list → this device's. Returns whether anything changed here. */
-async function mergeRoutine(remote: SheetRoutineItem[]): Promise<boolean> {
+export async function mergeRoutine(remote: SheetRoutineItem[]): Promise<boolean> {
   await store.routine.renameDeleted();
   const local = await store.routine.listAll();
   const remoteIds = new Set(remote.map((r) => r.id));

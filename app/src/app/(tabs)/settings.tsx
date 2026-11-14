@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, ScrollView, Switch, Text, View } from 'react-native';
+import { Linking, Platform, ScrollView, Switch, Text, View } from 'react-native';
 import { CbtiPanel } from '@/components/CbtiPanel';
 import { ExportSheet } from '@/components/ExportSheet';
 import { GoogleSheetCard } from '@/components/GoogleSheetCard';
@@ -32,6 +32,11 @@ const DEFAULT_REMINDER: Record<Phase, Reminder> = {
 const PHASE_NAME: Record<Phase, string> = { bedtime: 'Bedtime', morning: 'Morning' };
 const DATE_STYLES: [DateStyle, string][] = [['ymd', 'year-month-day'], ['mdy', 'month-day-year (US)'], ['dmy', 'day-month-year']];
 const DISPLAY_MODES: [DisplayMode, string][] = [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Light by day, dark at night']];
+/** What to do with a Google Sheet on a phone: it can't be picked for Import as it is. */
+const GOOGLE_SHEET_TIP = Platform.OS === 'ios'
+  ? 'A Google Sheet can’t be imported straight from Google Drive. Connect it above instead, or in the Google Sheets app tap ⋯ → Share & export → Send a copy → Excel, save it to Files, and import that.'
+  : 'A Google Sheet shows greyed out in Drive: it can’t be imported as it is. Connect it above instead, or in the Google Sheets app tap ⋮ → Share & export → Save as → Excel (.xlsx), then import that file. (Downloading it from the Drive app gives a PDF, which can’t be imported.)';
+
 const SUPPORT_MAIL = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`1-Minute Sleep Journal feedback (build ${buildInfo.build})`)}`;
 /** A short title for one part of a card (like the card's own title, a step in). */
 function Heading({ children, first }: { children: string; first?: boolean }) {
@@ -72,9 +77,15 @@ export default function SettingsScreen() {
   useEffect(() => void load(), [load]); // a phone can swipe to this page before it's focused
   useFocusEffect(useCallback(() => void load(), [load]));
 
+  // An import that goes wrong says so in the Import card, by its button (not at the top of the page).
+  const [importError, setImportError] = useState<string | null>(null);
+  // While an import runs: how far it got (it saves in batches, see importSheets in csv.ts).
+  const [importing, setImporting] = useState<{ done: number; total: number } | null>(null);
   const importCsv = async () => {
+    setImportError(null);
+    setImportMsg(null);
     try {
-      const r = await pickAndImport();
+      const r = await pickAndImport((done, total) => setImporting({ done, total }));
       if (!r) return;
       requestSync();
       setImportMsg(
@@ -84,7 +95,9 @@ export default function SettingsScreen() {
         (r.empty ? ` · ${r.empty} blank row(s) skipped` : ''),
       );
     } catch (e) {
-      setError((e as Error).message);
+      setImportError((e as Error).message);
+    } finally {
+      setImporting(null);
     }
   };
 
@@ -157,8 +170,21 @@ export default function SettingsScreen() {
           Import a .csv or .xlsx exported from 1-Minute Sleep Journal, or your Google Sheet downloaded as .xlsx.
           Nights you already have are left alone.
         </Muted>
-        <Button title="Import .csv or .xlsx" onPress={importCsv} small color={colors.chip} textColor={colors.text} />
+        <Button title="Import .csv or .xlsx" onPress={importCsv} small busy={importing !== null} color={colors.chip} textColor={colors.text} />
+        {importing && (
+          <View style={{ gap: space.xs }} accessibilityRole="progressbar"
+            accessibilityValue={{ min: 0, max: Math.max(importing.total, 1), now: importing.done }}>
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.chip, overflow: 'hidden' }}>
+              <View style={{ height: 6, width: `${importing.total ? Math.round((importing.done / importing.total) * 100) : 0}%`, backgroundColor: colors.night }} />
+            </View>
+            <Muted>{importing.total ? `Importing… ${importing.done} of ${importing.total} nights` : 'Reading the file…'}</Muted>
+          </View>
+        )}
+        {/* Phones can't pick a Google Sheet itself (Android greys it out; Drive only offers apps a PDF of
+            it): say what works instead, before someone tries. */}
+        {Platform.OS !== 'web' && <Muted>{GOOGLE_SHEET_TIP}</Muted>}
         {importMsg && <Text style={{ color: colors.success }}>{importMsg}</Text>}
+        {importError && <ErrorBox message={importError} />}
       </Card>
 
       <ExportSheet visible={exporting} onClose={() => setExporting(false)} onError={setError} />

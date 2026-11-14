@@ -4,6 +4,7 @@ import { registerHooks } from 'node:module';
 
 const stub = (name) => new URL(`./stubs/${name}.cjs`, import.meta.url).href;
 const STUBS = {
+  expo: stub('expo'),
   'expo-sqlite': stub('sqlite'),
   'expo-file-system': stub('empty'),
   'expo-sharing': stub('empty'),
