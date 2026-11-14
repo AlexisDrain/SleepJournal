@@ -143,16 +143,6 @@ export default function StatsScreen() {
 
   const header = (
     <View style={{ gap: space.md }}>
-      {/* First on the page: what people come to Stats for most when seeing a therapist. */}
-      {/* Phones: across the width. Wide screens: a normal-sized button with its line beside it. */}
-      <View style={wide ? { flexDirection: 'row', alignItems: 'center', gap: space.lg } : { gap: space.sm }}>
-        <View style={wide ? { width: 240 } : undefined}>
-          <Button title="Go to printable report" onPress={openReport} />
-        </View>
-        <View style={wide ? { flex: 1 } : undefined}>
-          <Muted>Your averages, the chart and the night-by-night table below, for the nights chosen here: see it, then save it as a PDF, a web page (.html) or Markdown (.md) to share (with a therapist, say). Dreams stay out.</Muted>
-        </View>
-      </View>
       {/* Dreams and Sheet belong to Stats. On phones this card is the way to them (the bottom bar
           has no room); wide screens also have them in the menu, and show the two side by side. */}
       <Card title="More from your journal">
@@ -167,6 +157,16 @@ export default function StatsScreen() {
           </View>
         </View>
       </Card>
+      {/* The printable report, right under the card, above the nights it's made from. */}
+      {/* Phones: across the width. Wide screens: a normal-sized button with its line beside it. */}
+      <View style={wide ? { flexDirection: 'row', alignItems: 'center', gap: space.lg } : { gap: space.sm }}>
+        <View style={wide ? { width: 240 } : undefined}>
+          <Button title="Go to printable report" onPress={openReport} />
+        </View>
+        <View style={wide ? { flex: 1 } : undefined}>
+          <Muted>Your averages, the chart and the night-by-night table below, for the nights chosen here: see it, then save it as a PDF, a web page (.html) or Markdown (.md) to share (with a therapist, say). Dreams stay out.</Muted>
+        </View>
+      </View>
       <View style={[styles.chips, { justifyContent: 'center' }]}>
         {PERIODS.map((p, i) => <Chip key={p.label} label={p.label} selected={!year && i === period} onPress={() => { setYear(null); setPeriod(i); }} />)}
       </View>
