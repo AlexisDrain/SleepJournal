@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Platform, ScrollView, Switch, Text, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, Switch, Text, View } from 'react-native';
 import { CbtiPanel } from '@/components/CbtiPanel';
 import { ExportSheet } from '@/components/ExportSheet';
 import { GoogleSheetCard } from '@/components/GoogleSheetCard';
@@ -278,6 +278,15 @@ export default function SettingsScreen() {
   );
 }
 
+/** Notifications are off for this app in the phone's settings: say so, with a way there. */
+function notificationsOffAlert() {
+  const where = Platform.OS === 'ios' ? 'iPhone Settings → Notifications → Sleep Journal' : 'Android Settings → Apps → Sleep Journal → Notifications';
+  Alert.alert('Notifications are turned off', `To get reminders, turn on notifications for Sleep Journal in ${where}.`, [
+    { text: 'Not now', style: 'cancel' },
+    { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
+  ]);
+}
+
 function ReminderRow({ phase, reminder, onChange, onError }: {
   phase: Phase;
   reminder?: Reminder;
@@ -286,26 +295,35 @@ function ReminderRow({ phase, reminder, onChange, onError }: {
 }) {
   const schedule = async (r: Reminder) => {
     try {
-      if (!(await ensurePermission())) return onError('Notifications are turned off for this app in iOS Settings.');
+      if (!(await ensurePermission())) {
+        setOn(null);
+        return notificationsOffAlert();
+      }
       await setReminder(r);
       onChange();
     } catch (e) {
+      setOn(null);
       onError((e as Error).message);
     }
   };
-  const toggle = async (on: boolean) => {
-    if (on) return schedule(DEFAULT_REMINDER[phase]);
+  // The switch moves as soon as it's tapped (it used to wait until the reminders were planned).
+  const [on, setOn] = useState<boolean | null>(null);
+  useEffect(() => setOn(null), [reminder]);
+  const shown = on === false ? undefined : reminder ?? (on ? DEFAULT_REMINDER[phase] : undefined);
+  const toggle = async (value: boolean) => {
+    setOn(value);
+    if (value) return schedule(DEFAULT_REMINDER[phase]);
     await clearReminder(phase);
     onChange();
   };
   return (
     <Row label={`${PHASE_NAME[phase]} notification`}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-        {reminder && (
-          <TimePicker value={new Date(2000, 0, 1, reminder.hour, reminder.minute)} accent={PHASE_COLOR[phase]}
+        {shown && (
+          <TimePicker value={new Date(2000, 0, 1, shown.hour, shown.minute)} accent={PHASE_COLOR[phase]}
             onChange={(d) => schedule({ phase, hour: d.getHours(), minute: d.getMinutes() })} />
         )}
-        <Switch value={!!reminder} onValueChange={toggle} trackColor={{ true: PHASE_COLOR[phase] }} />
+        <Switch value={on ?? !!reminder} onValueChange={toggle} trackColor={{ true: PHASE_COLOR[phase] }} />
       </View>
     </Row>
   );
