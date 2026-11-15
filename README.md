@@ -13,6 +13,8 @@ You can sync your data between devices using Google Sheet.
   page.
 - **iPhone App Store:** not yet. Use the web version for now.
 
+![banner picture](promo/banner/banner-1270x760.png)
+
 ## Forking
 
 Publishing your own copy? These point at this project, so change them first:
