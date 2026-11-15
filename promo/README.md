@@ -150,7 +150,7 @@ Required for every app (App Information → Privacy Policy URL). It's `PRIVACY.m
 commit and push it first, or this link shows a 404.
 
 ```
-https://github.com/AlexisDrain/SleepJournal/blob/master/PRIVACY.md
+https://github.com/AlexisDrain/SleepJournal/blob/main/PRIVACY.md
 ```
 
 ### App Privacy
@@ -158,6 +158,14 @@ https://github.com/AlexisDrain/SleepJournal/blob/master/PRIVACY.md
 In App Store Connect → App Privacy, answer **"No, we do not collect data from this app"** ("Data Not
 Collected"). The journal stays on the device; Google Sheet sync goes from the device to the person's
 own sheet, not to the developer. See `PRIVACY.md`.
+
+### Categories
+
+- **Primary: Health & Fitness.** Where sleep trackers and diaries are, and where people browse for them.
+- **Secondary: Lifestyle.** Routines and habits.
+
+Not Medical: that category is for clinical tools, and Apple reviews apps there more strictly. A
+diary you share with a therapist isn't one.
 
 ### Copyright
 
