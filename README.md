@@ -10,7 +10,7 @@ You can sync your data between devices using Google Sheet.
 
 - **Any phone or computer:** open https://sleep-journal.expo.app in your browser.
 - **Android:** download the `.apk` from the [Releases](https://github.com/AlexisDrain/SleepJournal/releases)
-  page (coming soon).
+  page.
 - **iPhone App Store:** not yet. Use the web version for now.
 
 ## Forking
