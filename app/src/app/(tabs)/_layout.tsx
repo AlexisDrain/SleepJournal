@@ -59,6 +59,10 @@ export default function TabsLayout() {
       {/* Report: only ever opened from Stats' Report button (it shows what's chosen there), so no tab. */}
       <Tabs.Screen name="report" options={{ title: 'Report', headerLeft: backToStats, tabBarButton: () => null, tabBarItemStyle: { display: 'none' }, lazy: true }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarIcon: icon('⚙') }} />
+      {/* Website only: where to get the phone apps. On a narrow screen the bottom bar has room for a short label. */}
+      <Tabs.Screen name="get-app" options={Platform.OS === 'web'
+        ? { title: 'Get Mobile App ↗\uFE0E', tabBarLabel: wide ? 'Get Mobile App ↗\uFE0E' : 'Get app ↗\uFE0E', tabBarIcon: icon('▯') }
+        : { tabBarButton: () => null, tabBarItemStyle: { display: 'none' }, lazy: true }} />
     </Nav>
   );
 }
