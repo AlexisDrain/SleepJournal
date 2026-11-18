@@ -8,7 +8,7 @@ You can sync your data between devices using Google Sheet.
 
 ## Get the app
 
-- **Any phone or computer browser:** https://sleep-journal.expo.app
+- **Any computer browser:** https://sleep-journal.expo.app
 - **iPhone App Store:** https://apps.apple.com/us/app/1-minute-sleep-journal/id6827412021
 - **Android:** download the `.apk` from the [Releases](https://github.com/AlexisDrain/SleepJournal/releases) page.
 
