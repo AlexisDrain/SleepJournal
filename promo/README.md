@@ -320,7 +320,7 @@ Launch after the App Store approves the app. Tuesday to Thursday, at 12:01 AM Pa
 https://sleep-journal.expo.app
 ```
 
-**More links:** the App Store page (`https://apps.apple.com/app/id<the Apple ID>`), the GitHub
+**More links:** the App Store page (`https://apps.apple.com/us/app/1-minute-sleep-journal/id6827412021`), the GitHub
 repository (it's open source), and the Android APK
 (`https://github.com/AlexisDrain/SleepJournal/releases/latest`).
 
