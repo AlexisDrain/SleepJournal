@@ -13,7 +13,8 @@ You can sync your data between devices using Google Sheet.
   page.
 - **iPhone App Store:** not yet. Use the web version for now.
 
-![banner picture](promo/banner/banner-1270x760.png)
+## Trailer & Guide
+https://github.com/user-attachments/assets/192e027f-7a95-41ca-9fb3-cda03ab66a8c
 
 ## Forking
 
