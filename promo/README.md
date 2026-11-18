@@ -124,10 +124,11 @@ http://creativecommons.org/licenses/by/4.0/
 Commas, no spaces. The app's name and subtitle (1-Minute Sleep Journal, Quick diary, morning and
 night) are already searched, so their words aren't repeated here. Since the subtitle changed:
 "rest" is back (the old subtitle had it), "cbti" is added (people type it without the hyphen too),
-and "report" made room for them.
+and "report" made room for them. Naps were removed from the app (Nov 2026), so "nap" became
+"cbt" (people search for CBT as well as CBT-I).
 
 ```
-insomnia,cbt-i,cbti,tracker,log,dreams,bedtime,routine,habits,patterns,wake,therapy,nap,rest,offline
+insomnia,cbt-i,cbti,tracker,log,dreams,bedtime,routine,habits,patterns,wake,therapy,cbt,rest,offline
 ```
 
 ### Support URL
@@ -180,6 +181,54 @@ Apple adds the © itself.
 ```
 No account or sign-in is needed: everything is stored on the device. Syncing with a Google Sheet (Settings → Google Sheet) is optional and needs the user's own Google Sheet; the rest of the app works fully without it.
 ```
+
+### Reviewer Notes for the resubmission (after the Guideline 2.1 "Information Needed" reply)
+
+Apple asked for a screen recording plus five answers in the Notes field. Paste this, and attach the
+recording (see "Review recording" below):
+
+```
+1. SCREEN RECORDING
+Attached: recorded on an iPhone running the latest iOS, starting from launching the app. There is no account, sign-in, user-generated content shared with others, or paid content in this app.
+
+2. PURPOSE AND AUDIENCE
+1-Minute Sleep Journal is a free, open-source sleep diary for adults who want to understand their sleep, including people doing CBT-I (cognitive behavioral therapy for insomnia) whose therapist asks them to keep a sleep diary. Two quick check-ins a day (at bedtime and in the morning) record when they went to bed, how long it took to fall asleep, when they woke and how rested they feel. Stats and a printable report show patterns over the weeks and can be shared with a therapist. The app is a diary only: it gives no diagnosis, treatment or medical advice.
+
+3. HOW TO USE IT
+No login, demo account or sample files are needed: everything works offline on the device.
+- On first launch, a short welcome (optionally turning on reminders), then "Start journaling" opens the Journal tab.
+- Journal: tap "Set to now" on the Bedtime card, then fill in the Morning card.
+- Routines: optional checklists for bedtime, morning and the day.
+- Stats: averages, a chart and a night-by-night table; "Go to printable report" previews a report and saves it as PDF, HTML or Markdown through the share sheet. Dreams and Sheet are reached from the card on Stats.
+- Settings: optional reminders (local notifications), export/import of the journal as .xlsx or .csv, and optional sync with the user's own Google Sheet.
+Google Sheet sync is optional and needs the user's own Google account: the user makes a copy of a template sheet, deploys the script inside it as their own Apps Script web app, and pastes its web address and a secret key into Settings → Google Sheet. The app then sends the journal straight from the device to that sheet. Setup guide (done on a computer, about 3 minutes): https://github.com/AlexisDrain/SleepJournal/tree/main/google-sheets. It is not needed to review any other feature.
+
+4. EXTERNAL SERVICES
+- Expo (EAS Update): delivers app updates. No user data is sent.
+- Google Apps Script / Google Sheets: only if the user connects their own sheet (above). The developer has no server and never receives any data.
+No analytics, ads, AI, authentication or payment services. Setup guide is here: https://github.com/AlexisDrain/SleepJournal/tree/main/google-sheets
+
+5. REGIONS
+The app works the same in every region. It is in English; dates and times follow the device's settings.
+
+6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+Not applicable: it is a personal diary, not a medical device, and gives no medical advice. The app previews use the music "Inspired" by Kevin MacLeod (incompetech.com) under Creative Commons Attribution 4.0, credited in the previews and the description.
+```
+
+### Review recording (for Apple, not the store)
+
+On the iPhone: Control Center → Screen Recording. About 1–2 minutes. Delete the app and install it
+again from TestFlight first, so the recording starts at the welcome screens.
+
+1. Start on the Home Screen and tap the app's icon.
+2. The welcome: "Get started", "Remind me at 10:30 PM and 10 AM" (allow notifications), "Start journaling".
+3. Journal: Bedtime "Set to now", a note; then the Morning card.
+4. Routines: tick a couple of items.
+5. Stats: scroll, open Dreams and Sheet from the card, then "Go to printable report" and save a PDF.
+6. Settings: turn on a reminder, tap Export, and show the Google Sheet card (no need to connect).
+
+Don't show a real sheet's web address or secret key. Attach the file in App Store Connect → App
+Review Information → Attachment, or to the reply in App Review.
 
 ## Pictures and videos
 
@@ -258,3 +307,59 @@ and ffmpeg. Everything runs in `source/`.
 The scripts set the page's clock to a fixed day (Nov 6–7, 2026), so the shots always show the same
 nights whatever today's date is. They read from and write to `raw/`, `out/` and `frames/` next to
 themselves (git-ignored): copy the results into the folders above.
+
+## Product Hunt
+
+Launch after the App Store approves the app. Tuesday to Thursday, at 12:01 AM Pacific time.
+
+**Name:** 1-Minute Sleep Journal
+
+**Link to the product (main link):** the web app, so visitors can try it in seconds without installing anything.
+
+```
+https://sleep-journal.expo.app
+```
+
+**More links:** the App Store page (`https://apps.apple.com/app/id<the Apple ID>`), the GitHub
+repository (it's open source), and the Android APK
+(`https://github.com/AlexisDrain/SleepJournal/releases/latest`).
+
+**Tagline (52 / 60):**
+
+```
+A free, private sleep diary, in about a minute a day
+```
+
+Other options: "A simple sleep diary to share with your therapist" (49), "Two quick check-ins a day.
+No account, no ads, no tracking." (59).
+
+**Description (249 / 260):**
+
+```
+Two quick check-ins a day: one at bedtime, one when you wake up. See your patterns in Stats, then share a printable report with your therapist. Doing CBT-I? Its questions are one tap away. Free, open source, offline, no account, no ads, no tracking.
+```
+
+**Pricing:** Free. **Topics:** Health & Fitness, Open Source, Productivity (or a Sleep topic, if
+the search finds one).
+
+**Pictures:** thumbnail `app/assets/icon.png` (Product Hunt asks for 240 × 240), gallery
+`banner/banner-1270x760.png` first, then screenshots. **Video:** Product Hunt takes a YouTube
+link, so upload `trailer/sleep-journal-trailer.mp4` to YouTube first (Unlisted works).
+
+**First comment (from you, the maker; change it to sound like you):**
+
+```
+Hi Product Hunt! 👋
+
+My psychiatrist told me that most sleep apps are bloated, so I made a simple one with no frills.
+
+1-Minute Sleep Journal is a sleep diary: one quick check-in at bedtime (when you got in bed and tried to sleep) and one in the morning (when you woke up, how long it took to fall asleep, how rested you feel). Over the weeks, Stats shows your patterns, and the printable report (PDF, web page or Markdown) is ready to bring to a therapist.
+
+A few things I cared about:
+• Private: your journal stays on your device. No account, no ads, no tracking.
+• Free and open source: every line is on GitHub.
+• CBT-I: if you're doing therapy for insomnia, its two morning questions are one tap away.
+• Optional sync with your own Google Sheet, so your phone and computer share one journal (the app never sees your Google login).
+
+It's on the web, the App Store and Android (APK on GitHub). I'd love your feedback: what would make it fit your nights better?
+```

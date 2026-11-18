@@ -427,5 +427,6 @@ export const store = {
   redate,
   tags,
   routine,
+  // Naps were a Journal card until Nov 2026. The table stays (no migration), unused; old naps stay in it.
   naps: table<Nap>('naps', 'start_at DESC', { startAt: 'start_at', endAt: 'end_at', note: 'note' }),
 };

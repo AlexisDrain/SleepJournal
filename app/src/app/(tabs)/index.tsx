@@ -13,7 +13,6 @@ import { joinStatus, useSyncText } from '@/components/SyncLine';
 import { useSheetSync } from '@/lib/useSync';
 import { TagManager } from '@/components/TagManager';
 import { LatencyPicker, NightSwitcher, RESTED_LABELS, RestedScale, TagPicker } from '@/components/inputs';
-import { NapsCard } from '@/components/NapsCard';
 import { TimeField } from '@/components/TimeField';
 import { Button, Card, Chip, ErrorBox, LongTextInput, Muted, styles } from '@/components/ui';
 import { store } from '@/db/store';
@@ -237,7 +236,6 @@ export default function JournalScreen() {
                     </SwapSlide>
                   ))}
                 </View>
-                <NapsCard nightOf={nightOf} />
                 <View style={{
                   backgroundColor: colors.card, borderRadius: radius, borderWidth: 1, borderColor: colors.cardBorder,
                   padding: space.lg, gap: space.md,
