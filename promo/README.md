@@ -251,6 +251,12 @@ Review Information → Attachment, or to the reply in App Review.
   phones, for places that show the whole picture: `banner-1280x640.png` for GitHub (Settings →
   Social preview), `banner-1270x760.png` for Product Hunt's gallery, and two big ones for a website.
   Made from `source/banner.html` with `node art.mjs --banner`.
+- **Web app picture (not for the App Store):** `web/web-app-2540x1520.png`, the website in a browser
+  window with the line "Computer or mobile: no install, no account", in Product Hunt's gallery shape
+  (1270 × 760 at 2×). Made with `node web-shot.mjs` then `python web-frame.py` in `source/`.
+- **Product Hunt gallery:** `producthunt/`, all 2540 × 1520: the web app picture first, then the
+  iPhone screenshots two to a picture (Stats + Night by night, CBT-I + Routines, No account + Light),
+  as in Recommendation Journal's. Made with `python pairs.py` in `source/` (after `frame.py`).
 - **App previews:** H.264 .mp4 files with music: "Inspired" by Kevin MacLeod
   (`promo/trailer/Inspired.mp3`). Its licence (CC BY 4.0) lets anyone use it, ads included, as long as
   it's credited, so each preview ends on a 3-second card with the credit, and the Description

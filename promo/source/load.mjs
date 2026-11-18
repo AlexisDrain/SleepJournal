@@ -15,6 +15,8 @@ if (await b.ev(`document.body.innerText.includes('Get started')`)) {
 await b.send('Page.setInterceptFileChooserDialog', { enabled: true });
 const chosen = new Promise((r) => b.on((m) => m.method === 'Page.fileChooserOpened' && r(m.params)));
 await b.goto(`${home}/settings`, 4000);
+for (let i = 0; i < 30 && !(await b.ev(`document.body.innerText.includes('Import .csv')`)); i++) await b.sleep(1000);
+await b.helper();
 await b.tap('Import .csv or .xlsx', 1500);
 const p = await Promise.race([chosen, b.sleep(5000).then(() => null)]);
 if (!p) throw new Error('No file chooser opened');
